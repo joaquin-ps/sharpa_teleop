@@ -1,0 +1,106 @@
+# @package hand_config
+# Index MCP AA (21) + MCP flex (22) + PIP (23) — merged from 1-DoF configs
+
+control_frequency: 200
+verbose: true
+show_current_breakdown: true
+
+leader:
+  mode: current
+  motor_ids:
+    - 21
+    - 22
+    - 23
+  general_settings:
+    current_limit: 1400
+    current_command: 0
+  joint_settings:
+    - motor_id: 21
+      joint_settings:
+        motor_model: XC330
+        zero_position: 2048
+        min_angle_deg: -20
+        max_angle_deg: 20
+        direction: 1
+      current_control:
+        # Force Rendering Damping
+        enable_force_rendering_damping: true
+        force_rendering_damping_gain: 60.0
+        force_rendering_damping_velocity_threshold: 0.0
+        force_rendering_damping_max_current: 30
+        # Force Rendering
+        enable_force_rendering: true
+        gradual_rendering: true
+        force_rendering_gain: 0.22
+        force_rendering_alpha: 0.1
+        force_rendering_threshold_positive: 350
+        force_rendering_threshold_negative: 350
+        force_rendering_max_current: 50
+    - motor_id: 22
+      joint_settings:
+        motor_model: XC330
+        zero_position: 2048
+        min_angle_deg: -10
+        max_angle_deg: 80
+        direction: 1
+      current_control:
+        # Force Rendering Damping
+        enable_force_rendering_damping: true
+        force_rendering_damping_gain: 60.0
+        force_rendering_damping_velocity_threshold: 0.0
+        force_rendering_damping_max_current: 35
+        # Force Rendering
+        enable_force_rendering: true
+        gradual_rendering: true
+        force_rendering_gain: 0.15
+        force_rendering_alpha: 0.10
+        force_rendering_threshold_positive: 135
+        force_rendering_threshold_negative: 185
+        force_rendering_max_current: 110
+    - motor_id: 23
+      joint_settings:
+        motor_model: XC330
+        zero_position: 2048
+        min_angle_deg: 0
+        max_angle_deg: 80
+        direction: 1
+      current_control:
+        # Force Rendering Damping
+        enable_force_rendering_damping: true
+        force_rendering_damping_gain: 60.0
+        force_rendering_damping_velocity_threshold: 0.0
+        force_rendering_damping_max_current: 30
+        
+        # Force Rendering
+        enable_force_rendering: true
+        gradual_rendering: true
+        force_rendering_gain: 0.22
+        force_rendering_alpha: 0.1
+        force_rendering_threshold_positive: 125
+        force_rendering_threshold_negative: 145
+        force_rendering_max_current: 100
+
+follower:
+  mode: none
+  motor_ids: []
+
+sharpa_mapping:
+  pairs:
+    - leader_motor_id: 21
+      sharpa_joint: "Index MCP Abduction/Adduction"
+      offset_rad: 0.0
+      scale: 1.0
+      torque_to_mA: 1000.0
+      torque_filter_alpha: 0.25
+    - leader_motor_id: 22
+      sharpa_joint: "Index MCP Flexion/Extension"
+      offset_rad: 0.0
+      scale: 1.0
+      torque_to_mA: 1000.0
+      torque_filter_alpha: 0.25
+    - leader_motor_id: 23
+      sharpa_joint: "Index PIP Flexion/Extension"
+      offset_rad: 0.0
+      scale: 1.0
+      torque_to_mA: 1000.0
+      torque_filter_alpha: 0.25

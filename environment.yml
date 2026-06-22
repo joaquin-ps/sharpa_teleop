@@ -1,0 +1,15 @@
+name: sharpa_ditto
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - opencv
+  - matplotlib
+  - pip
+  - pip:
+    - hydra-core>=1.3.0
+    - omegaconf>=2.3.0
+    - dynamixel-sdk==3.8.4
+    - dynamixel_u2d2 @ git+https://github.com/joaquin-ps/dynamixel_u2d2.git
