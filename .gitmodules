@@ -2,3 +2,6 @@
 	path = finger_aloha
 	url = git@github.com:roamlab/finger_aloha.git
 	branch = sharpa
+[submodule "sharpa_controller"]
+	path = sharpa_controller
+	url = git@github.com:joaquin-ps/sharpa_controller.git

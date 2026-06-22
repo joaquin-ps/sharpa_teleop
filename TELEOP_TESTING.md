@@ -16,8 +16,8 @@ Staged bring-up for the 1-DoF index PIP setup (Dynamixel leader ID 1 → Sharpa 
 Verify Sharpa connectivity and index PIP state:
 
 ```bash
-python sharpa_teleop/sharpa_controller/tools/read_joints.py --once --radians
-python sharpa_teleop/sharpa_controller/tools/read_torques.py --once
+python sharpa_controller/tools/read_joints.py --once --radians
+python sharpa_controller/tools/read_torques.py --once
 ```
 
 ## Stage 2 — Open-loop teleop (no force feedback)
@@ -25,7 +25,7 @@ python sharpa_teleop/sharpa_controller/tools/read_torques.py --once
 Disable force rendering so the leader moves freely while Sharpa tracks position:
 
 ```bash
-python sharpa_teleop/sharpa_teleop_controller.py \
+python sharpa_teleop_controller.py \
   hand_config.leader.joint_settings.0.current_control.enable_force_rendering=false
 ```
 
@@ -36,9 +36,9 @@ python sharpa_teleop/sharpa_teleop_controller.py \
 Visualize leader vs Sharpa signals while teleop runs (close the window to stop):
 
 ```bash
-python sharpa_teleop/live_plot.py
-python sharpa_teleop/live_plot.py --current --position --torque
-python sharpa_teleop/live_plot.py show_current_breakdown=true
+python live_plot.py
+python live_plot.py --current --position --torque
+python live_plot.py show_current_breakdown=true
 ```
 
 Plots:
@@ -53,7 +53,7 @@ Red dashed lines on the current plot mark `force_rendering_threshold_positive` /
 Confirm the feedback path is wired without haptic effect:
 
 ```bash
-python sharpa_teleop/sharpa_teleop_controller.py \
+python sharpa_teleop_controller.py \
   hand_config.leader.joint_settings.0.current_control.enable_force_rendering=true \
   hand_config.leader.joint_settings.0.current_control.force_rendering_gain=0.0
 ```
@@ -63,13 +63,13 @@ python sharpa_teleop/sharpa_teleop_controller.py \
 Default config uses very low gain (`0.02`), high threshold (`100`), and `max_current: 300`:
 
 ```bash
-python sharpa_teleop/sharpa_teleop_controller.py
+python sharpa_teleop_controller.py
 ```
 
 Increase gain gradually only after open-loop mapping is calibrated:
 
 ```bash
-python sharpa_teleop/sharpa_teleop_controller.py \
+python sharpa_teleop_controller.py \
   hand_config.leader.joint_settings.0.current_control.force_rendering_gain=0.03 \
   hand_config.sharpa_mapping.pairs.0.torque_to_mA=60.0
 ```
