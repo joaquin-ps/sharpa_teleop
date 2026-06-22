@@ -1,0 +1,4 @@
+[submodule "finger_aloha"]
+	path = finger_aloha
+	url = git@github.com:roamlab/finger_aloha.git
+	branch = sharpa
