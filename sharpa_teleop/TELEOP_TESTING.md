@@ -1,17 +1,20 @@
-# Sharpa + Dynamixel Teleop Testing
+# 🧪 Sharpa + Dynamixel Teleop Testing
 
-Staged bring-up for the 1-DoF index PIP setup (Dynamixel leader ID 1 → Sharpa index PIP).
+Staged bring-up for the 1-DoF index PIP setup (Dynamixel leader → Sharpa index PIP).
 
-## Prerequisites
+See the [top-level README](../README.md) for installation and the 3-DoF quick start.
 
-- Sharpa Wave SDK installed (`/opt/sharpa-wave-sdk`)
+## 📋 Prerequisites
+
+- [Sharpa Wave SDK](https://github.com/sharpa-robotics/sharpa-wave-sdk) installed at `/opt/sharpa-wave-sdk`
 - U2D2 on `/dev/ttyUSB0` (override with `u2d2.usb_port=...`)
 - Motor ID **1**, baud **4000000**, XC330-T181 (uses `XC330` motor model in config)
 - Conda env: `conda env create -f environment.yml && conda activate sharpa_ditto`
 - Install finger_aloha Dynamixel driver (editable):  
   `pip install -e finger_aloha/dynamixel_u2d2`
+- Before teleop: `dynamixel-port --latency-timer 1`
 
-## Stage 1 — Sharpa read-only
+## 1️⃣ Stage 1 — Sharpa read-only
 
 Verify Sharpa connectivity and index PIP state:
 
@@ -20,7 +23,7 @@ python sharpa_controller/tools/read_joints.py --once --radians
 python sharpa_controller/tools/read_torques.py --once
 ```
 
-## Stage 2 — Open-loop teleop (no force feedback)
+## 2️⃣ Stage 2 — Open-loop teleop (no force feedback)
 
 Disable force rendering so the leader moves freely while Sharpa tracks position:
 
@@ -31,7 +34,7 @@ python sharpa_teleop_controller.py \
 
 **Verify:** Moving the leader flexes only Sharpa index PIP; other Sharpa joints stay fixed.
 
-## Live plot (diagnostics)
+## 📈 Live plot (diagnostics)
 
 Visualize leader vs Sharpa signals while teleop runs (close the window to stop):
 
@@ -48,7 +51,7 @@ Plots:
 
 Red dashed lines on the current plot mark `force_rendering_threshold_positive` / `force_rendering_threshold_negative` (in synthetic mA units).
 
-## Stage 3 — Force feedback plumbing (gain = 0)
+## 3️⃣ Stage 3 — Force feedback plumbing (gain = 0)
 
 Confirm the feedback path is wired without haptic effect:
 
@@ -58,7 +61,7 @@ python sharpa_teleop_controller.py \
   hand_config.leader.joint_settings.0.current_control.force_rendering_gain=0.0
 ```
 
-## Stage 4 — Conservative closed-loop force feedback
+## 4️⃣ Stage 4 — Conservative closed-loop force feedback
 
 Default config uses very low gain (`0.02`), high threshold (`100`), and `max_current: 300`:
 
@@ -74,7 +77,7 @@ python sharpa_teleop_controller.py \
   hand_config.sharpa_mapping.pairs.0.torque_to_mA=60.0
 ```
 
-## Calibration
+## 🎯 Calibration
 
 Edit [`conf/hand_config/sharpa_1dof_index_pip.yaml`](conf/hand_config/sharpa_1dof_index_pip.yaml):
 
@@ -97,7 +100,7 @@ Edit [`conf/hand_config/sharpa_1dof_index_pip.yaml`](conf/hand_config/sharpa_1do
 3. Adjust `zero_position` and `offset_rad` until both report the same angle
 4. Flip `scale` sign or `torque_to_mA` sign if feedback pushes the wrong way
 
-## Safety
+## ⚠️ Safety
 
 - Start with low `sharpa.speed_coeff` and `sharpa.current_coeff` (defaults: 0.2 / 0.4)
 - Only `"Index PIP Flexion/Extension"` is enabled on Sharpa by default

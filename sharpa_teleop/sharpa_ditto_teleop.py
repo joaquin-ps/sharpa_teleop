@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import queue
-import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
-TELEOP_ROOT = Path(__file__).resolve().parent
-FA_ROOT = TELEOP_ROOT / "finger_aloha"
-sys.path.insert(0, str(FA_ROOT))
-sys.path.insert(0, str(TELEOP_ROOT / "sharpa_controller"))
+from ._paths import setup_import_paths
+
+setup_import_paths()
 
 from hand_interfaces.src.current_control import (  # noqa: E402
     ControlParams,

@@ -2,8 +2,10 @@
 """
 Sharpa + Dynamixel teleoperation entry point.
 
-Example:
-    python sharpa_teleop_controller.py u2d2.usb_port=/dev/ttyUSB0
+Example (from repo root):
+    python sharpa_teleop/sharpa_teleop_controller.py u2d2.usb_port=/dev/ttyUSB0
+
+Example (from sharpa_teleop/ package dir):
     python sharpa_teleop_controller.py \\
         hand_config.leader.joint_settings.0.current_control.enable_force_rendering=false
 """
@@ -11,16 +13,14 @@ Example:
 import sys
 from pathlib import Path
 
-TELEOP_ROOT = Path(__file__).resolve().parent
-FA_ROOT = TELEOP_ROOT / "finger_aloha"
-sys.path.insert(0, str(TELEOP_ROOT))
+_REPO = Path(__file__).resolve().parent.parent
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
 
 from hydra import compose, initialize_config_dir  # noqa: E402
 
-from sharpa_ditto_teleop import SharpaDittoTeleop  # noqa: E402
-
-CONF_DIR = TELEOP_ROOT / "conf"
-FA_CONF_DIR = (FA_ROOT / "hand_interfaces" / "conf").resolve()
+from sharpa_teleop._paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from sharpa_teleop.sharpa_ditto_teleop import SharpaDittoTeleop  # noqa: E402
 
 
 def _build_overrides(cli_args: list[str]) -> list[str]:
