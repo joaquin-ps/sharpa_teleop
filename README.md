@@ -1,6 +1,11 @@
 # 🤖 Sharpa Teleop
 
-Dynamixel leader (current mode) → Sharpa Wave follower (position mode) with haptic force feedback from Sharpa joint torques.
+Two teleop stacks sharing `finger_aloha` (Dynamixel leader) and `sharpa_controller` (Sharpa Wave):
+
+| Package | What it does |
+|---------|----------------|
+| **`joint_teleop/`** | Direct joint-to-joint mapping with force feedback |
+| **`retargeting_teleop/`** | Ditto leader → Sharpa kinematic retargeting (index + thumb pads) |
 
 ## 📦 Installation
 
@@ -46,48 +51,93 @@ Set the U2D2 USB latency timer **before** running teleop scripts (requires `sudo
 dynamixel-port --latency-timer 1
 ```
 
-## 🖐️ Run 3-DoF index teleop
+## 🧪 Quick smoke tests (no hardware)
 
-Index MCP AA (motor 21) + MCP flex (22) + PIP (23). From the **repository root**:
+From the **repository root** (`sharpa_teleop/`):
 
 ```bash
 conda activate sharpa_ditto
-dynamixel-port --latency-timer 1
 
-python sharpa_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index
+# Retargeting core (imports + one IK step)
+python -c "
+import sys; sys.path[:0] = ['retargeting_teleop', '.']
+import numpy as np
+from retargeting import DittoToSharpaRetargeter
+r = DittoToSharpaRetargeter()
+print('retarget ok', r.retarget(np.zeros(7), np.zeros(22)).index_residual)
+"
+
+# Joint teleop config loads
+python -c "
+import sys; sys.path.insert(0, '.')
+from hydra import compose, initialize_config_dir
+from joint_teleop._paths import CONF_DIR, FA_CONF_DIR
+with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
+    cfg = compose(config_name='config', overrides=[f'hydra.searchpath=[file://{FA_CONF_DIR}]'])
+print('joint teleop config ok', cfg.hand_config.leader.mode)
+"
 ```
 
-Or from the `sharpa_teleop/` package directory:
+## 🖐️ Joint teleop (direct mapping + force feedback)
+
+Index MCP AA (motor 21) + MCP flex (22) + PIP (23):
 
 ```bash
-cd sharpa_teleop
-python sharpa_teleop_controller.py hand_config=sharpa_3dof_index
+python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index
 ```
 
-**Live diagnostics** (separate terminal):
+**Live diagnostics**:
 
 ```bash
-python sharpa_teleop/live_plot.py hand_config=sharpa_3dof_index --current --position --torque
+python joint_teleop/live_plot.py hand_config=sharpa_3dof_index --current --position --torque
 ```
 
-Override the U2D2 port if needed: `u2d2.usb_port=/dev/ttyUSB0`
+Fake Dynamixel (no USB): append `u2d2.fake_u2d2=true`
+
+Override the U2D2 port: `u2d2.usb_port=/dev/ttyUSB0`
+
+## 🎯 Retargeting teleop (Ditto leader → Sharpa pads)
+
+**URDF viewer only** (sliders + live retargeting, no hardware):
+
+```bash
+python retargeting_teleop/viz/view_assets.py
+```
+
+**Physical Ditto leader + viewer**:
+
+```bash
+python retargeting_teleop/viz/view_teleop.py
+python retargeting_teleop/viz/view_teleop.py u2d2.fake_u2d2=true   # no USB
+```
+
+Tune defaults in `retargeting_teleop/retargeting/retargeter.py` (`index_cartesian_scale`, `thumb_*_weight`, etc.).
+
+See **[retargeting_teleop/RETARGETING_TELEOP.md](retargeting_teleop/RETARGETING_TELEOP.md)** for viewer usage and code API.
 
 ## 📚 More documentation
 
-- **[Staged testing & calibration](sharpa_teleop/TELEOP_TESTING.md)** — 1-DoF bring-up, force-feedback stages, live plot, tuning tables
-- **`sharpa_teleop/conf/hand_config/`** — per-setup Hydra configs (`sharpa_1dof_*`, `sharpa_2dof_*`, `sharpa_3dof_index`)
+- **[Joint teleop](joint_teleop/JOINT_TELEOP.md)** — run commands, configs, force-feedback tuning
+- **[Retargeting teleop](retargeting_teleop/RETARGETING_TELEOP.md)** — viewer and IK API
+- **`joint_teleop/conf/hand_config/`** — per-setup Hydra configs
 - **`sharpa_controller/tools/`** — read Sharpa joints, torques, tactile
 
 ## 🏗️ Repository layout
 
 ```
-sharpa_teleop/              # this repo
-├── finger_aloha/           # submodule (branch: sharpa)
-├── sharpa_controller/      # submodule
-├── sharpa_teleop/          # Python package + configs
+sharpa_teleop/                      # this repo
+├── finger_aloha/                   # submodule (Dynamixel leader)
+├── sharpa_controller/              # submodule (Sharpa Wave)
+├── joint_teleop/                   # direct joint teleop
 │   ├── conf/
 │   ├── sharpa_teleop_controller.py
 │   ├── live_plot.py
-│   └── TELEOP_TESTING.md
+│   └── JOINT_TELEOP.md
+├── retargeting_teleop/             # pad retargeting + dev viewer
+│   ├── conf/
+│   ├── hardware_interfaces/
+│   ├── retargeting/
+│   ├── viz/
+│   └── RETARGETING_TELEOP.md
 └── environment.yml
 ```

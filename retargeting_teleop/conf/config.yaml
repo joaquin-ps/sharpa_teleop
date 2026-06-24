@@ -1,0 +1,10 @@
+defaults:
+  - u2d2: leader_id1
+  - hand_config: ditto_7dof_leader_only
+  - motor_models: default
+  - joint_configs: default
+  - _self_
+
+control_frequency: 200
+verbose: false
+show_current_breakdown: false
