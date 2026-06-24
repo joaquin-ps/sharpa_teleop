@@ -57,8 +57,8 @@ class DittoToSharpaRetargeter:
         index_orientation_weight: float = 0.1,
         thumb_position_weight: float = 1.5,
         thumb_orientation_weight: float = 0.05,
-        index_cartesian_scale: float = 1.4,
-        thumb_cartesian_scale: float = 1.5,
+        index_cartesian_scale: float = 1.3,
+        thumb_cartesian_scale: float = 1.3,
     ) -> None:
         self.ditto = DittoFingerIK(ditto_urdf)
         self.sharpa = SharpaFingerIK(sharpa_urdf)

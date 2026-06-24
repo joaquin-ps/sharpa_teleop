@@ -177,7 +177,8 @@
     <parent link="right_thumb_MC" />
     <child link="right_thumb_MCP_VL" />
     <axis xyz="0 0 1" />
-    <limit lower="-0.35" upper="1.3963" effort="1.864" velocity="16.07692878" />
+    <limit lower="-0.1" upper="1.3963" effort="1.864" velocity="16.07692878" />
+    <!-- <limit lower="-0.35" upper="1.3963" effort="1.864" velocity="16.07692878" /> -->
     <!-- <limit lower="-0.5236" upper="1.3963" effort="1.864" velocity="16.07692878" /> -->
   </joint>
   <link name="right_thumb_PP">
@@ -357,7 +358,7 @@
     </inertial>
   </link>
   <joint name="right_thumb_retargeting_pad_joint" type="fixed">
-    <origin xyz="0 0 0" rpy="3.141592653589793 -1.5707963267949 0" />
+    <origin xyz="0.0 0 -0.010" rpy="3.141592653589793 -1.5707963267949 0" />
     <parent link="right_thumb_fingertip" />
     <child link="right_thumb_retargeting_pad" />
   </joint>
@@ -634,7 +635,7 @@
     </inertial>
   </link>
   <joint name="right_index_retargeting_pad_joint" type="fixed">
-    <origin xyz="0 0 0" rpy="3.141592653589793 -1.5707963267949 0" />
+    <origin xyz="0.0 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
     <parent link="right_index_fingertip" />
     <child link="right_index_retargeting_pad" />
   </joint>
