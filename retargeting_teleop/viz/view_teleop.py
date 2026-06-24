@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""Ditto leader hardware + Sharpa retargeting in Viser.
+"""Ditto leader hardware + Sharpa retargeting + Sharpa follower hardware in Viser.
 
 Reads the physical Ditto leader via finger_aloha (leader-only, torque_off, no
-force feedback) and drives the bundled URDF viewer + Ditto→Sharpa retargeting.
+force feedback), retargets Ditto→Sharpa, and streams the result to the physical
+Sharpa Wave hand. Either hardware interface can be disabled independently.
+
+Hardware is OFF by default (viewer only); opt in per interface with --ditto
+and/or --sharpa.
 
 Usage (from sharpa_teleop repo root):
-    python retargeting_teleop/viz/view_teleop.py
-    python retargeting_teleop/viz/view_teleop.py hand_config=ditto_7dof_leader_only
-    python retargeting_teleop/viz/view_teleop.py u2d2.fake_u2d2=true
-    python retargeting_teleop/viz/view_teleop.py --leader-only
-    python retargeting_teleop/viz/view_teleop.py u2d2.usb_port=/dev/ttyUSB0
+    python retargeting_teleop/viz/view_teleop.py                 # viewer only, no hardware
+    python retargeting_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
+    python retargeting_teleop/viz/view_teleop.py --ditto         # ditto leader only
+    python retargeting_teleop/viz/view_teleop.py --sharpa        # sharpa hand only
+    python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
+    python retargeting_teleop/viz/view_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
 
 From retargeting_teleop/ package dir:
-    python viz/view_teleop.py
+    python viz/view_teleop.py --ditto --sharpa
 """
 
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _PKG = Path(__file__).resolve().parent.parent
@@ -34,20 +40,43 @@ from hardware_interfaces.ditto_leader import LeaderHardwareSession  # noqa: E402
 from viz.view_assets import run_viewer  # noqa: E402
 
 
-def _strip_view_flags() -> tuple[bool, bool]:
-    """Remove viewer flags before Hydra parses ``sys.argv``."""
-    show_leader = True
-    show_sharpa = True
+@dataclass
+class ViewFlags:
+    show_leader: bool = True
+    show_sharpa: bool = True
+    ditto_hardware: bool = False
+    sharpa_hardware: bool = False
+
+
+def _strip_view_flags() -> ViewFlags:
+    """Remove viewer flags before Hydra parses ``sys.argv``.
+
+    Hardware is opt-in: ``--ditto`` enables the Ditto leader, ``--sharpa``
+    enables the Sharpa follower. ``--leader-only`` / ``--sharpa-only`` only
+    control which URDFs are shown.
+    """
+    flags = ViewFlags()
     remaining = [sys.argv[0]]
     for arg in sys.argv[1:]:
         if arg == "--leader-only":
-            show_sharpa = False
+            flags.show_sharpa = False
         elif arg == "--sharpa-only":
-            show_leader = False
+            flags.show_leader = False
+        elif arg == "--ditto":
+            flags.ditto_hardware = True
+        elif arg == "--sharpa":
+            flags.sharpa_hardware = True
         else:
             remaining.append(arg)
     sys.argv = remaining
-    return show_leader, show_sharpa
+
+    # Hardware needs the corresponding hand(s) in the scene; retargeting to the
+    # Sharpa hand requires both the Ditto leader and Sharpa hands shown.
+    flags.ditto_hardware = flags.ditto_hardware and flags.show_leader
+    flags.sharpa_hardware = (
+        flags.sharpa_hardware and flags.show_leader and flags.show_sharpa
+    )
+    return flags
 
 
 def _build_overrides(cli_args: list[str]) -> list[str]:
@@ -60,29 +89,45 @@ def _build_overrides(cli_args: list[str]) -> list[str]:
 
 
 def main() -> None:
-    show_leader, show_sharpa = _strip_view_flags()
+    flags = _strip_view_flags()
     overrides = _build_overrides(sys.argv[1:])
 
     with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
         cfg = compose(config_name="config", overrides=overrides)
 
-    hardware = LeaderHardwareSession(cfg)
-    print("Connecting Ditto leader hardware...")
-    hardware.start()
-    print(
-        f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
-        f"(mode={cfg.hand_config.leader.mode}, follower={cfg.hand_config.follower.mode})"
-    )
+    hardware = None
+    if flags.ditto_hardware:
+        hardware = LeaderHardwareSession(cfg)
+        print("Connecting Ditto leader hardware...")
+        hardware.start()
+        print(
+            f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
+            f"(mode={cfg.hand_config.leader.mode}, "
+            f"follower={cfg.hand_config.follower.mode})"
+        )
+
+    sharpa_follower = None
+    if flags.sharpa_hardware:
+        # Imported lazily: this pulls in the Sharpa Wave SDK. Connection happens
+        # inside run_viewer once the Sharpa IK joint indexing is available.
+        from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
+
+        sharpa_follower = SharpaFollowerSession(cfg, verbose=True)
+
     try:
         run_viewer(
-            show_leader=show_leader,
-            show_sharpa=show_sharpa,
+            show_leader=flags.show_leader,
+            show_sharpa=flags.show_sharpa,
             hardware=hardware,
+            sharpa_follower=sharpa_follower,
         )
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
-        hardware.stop()
+        if hardware is not None:
+            hardware.stop()
+        if sharpa_follower is not None:
+            sharpa_follower.stop()
 
 
 if __name__ == "__main__":

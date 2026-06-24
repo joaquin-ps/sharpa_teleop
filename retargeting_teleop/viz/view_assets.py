@@ -19,7 +19,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 _PKG = Path(__file__).resolve().parent.parent
 _REPO = _PKG.parent
@@ -47,6 +47,9 @@ from retargeting.paths import (
     SHARPA_SLIDER_JOINT_PREFIXES,
 )
 from hardware_interfaces.ditto_leader import LeaderHardwareSession
+
+if TYPE_CHECKING:
+    from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
 LINK_FRAME_STYLES: dict[str, dict] = {
     "retarget_base": {"origin_color": (80, 255, 80), "axes_length": 0.025},
@@ -465,6 +468,7 @@ def run_viewer(
     show_leader: bool = True,
     show_sharpa: bool = True,
     hardware: LeaderHardwareSession | None = None,
+    sharpa_follower: "SharpaFollowerSession | None" = None,
 ) -> None:
 
     for label, path in (
@@ -483,6 +487,8 @@ def run_viewer(
     ]
     if hardware is not None:
         help_lines.append("- **Drive Ditto from leader hardware** for physical encoders")
+    if sharpa_follower is not None:
+        help_lines.append("- **Send retargeting to Sharpa hardware** to drive the real hand")
     server.gui.add_markdown("\n".join(help_lines))
     server.initial_camera.position = (0.35, -0.45, 0.25)
     server.initial_camera.look_at = (0.05, 0.0, 0.05)
@@ -498,6 +504,7 @@ def run_viewer(
     retarget_error_markdown: viser.GuiMarkdownHandle | None = None
     live_retarget_enabled = {"value": True}
     hardware_drive_enabled = {"value": hardware is not None}
+    sharpa_send_enabled = {"value": sharpa_follower is not None}
 
     def _retarget_ditto_to_sharpa(
         solve_params: IkSolveParams | None = IK_POLISH,
@@ -532,14 +539,33 @@ def run_viewer(
                 f"**Retarget IK error (rad):** index {result.index_residual:.3f}, "
                 f"thumb {result.thumb_residual:.3f}"
             )
+        if sharpa_follower is not None and sharpa_send_enabled["value"]:
+            sharpa_follower.send_q(result.sharpa_q)
 
     hardware_status_markdown: viser.GuiMarkdownHandle | None = None
+    sharpa_status_markdown: viser.GuiMarkdownHandle | None = None
     live_retarget: viser.GuiCheckboxHandle | None = None
     with server.gui.add_folder("Controls"):
         if show_leader and show_sharpa:
             live_retarget = server.gui.add_checkbox(
                 "Live Ditto → Sharpa retargeting",
                 initial_value=True,
+            )
+
+        if sharpa_follower is not None:
+            sharpa_send = server.gui.add_checkbox(
+                "Send retargeting to Sharpa hardware",
+                initial_value=True,
+            )
+
+            @sharpa_send.on_update
+            def _(_: viser.GuiEvent) -> None:
+                sharpa_send_enabled["value"] = bool(sharpa_send.value)
+                if sharpa_send.value:
+                    _retarget_ditto_to_sharpa(IK_POLISH)
+
+            sharpa_status_markdown = server.gui.add_markdown(
+                "**Sharpa hardware:** streaming retargeted joints"
             )
 
         if hardware is not None:
@@ -624,7 +650,17 @@ def run_viewer(
 
     if show_leader and show_sharpa:
         retargeter = DittoToSharpaRetargeter()
-        assert sharpa_robot is not None
+        assert sharpa_robot is not None and sharpa_ik is not None
+        if sharpa_follower is not None:
+            print("Connecting Sharpa follower hardware...")
+            try:
+                sharpa_follower.start(sharpa_ik.joint_q_index)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  Sharpa follower unavailable, continuing without it: {exc}")
+                sharpa_follower = None
+                sharpa_send_enabled["value"] = False
+                if sharpa_status_markdown is not None:
+                    sharpa_status_markdown.content = "**Sharpa hardware:** unavailable"
         sharpa_retarget_targets = _add_sharpa_retarget_target_frames(server, sharpa_robot)
         retarget_error_markdown = server.gui.add_markdown(
             "**Retarget IK error (rad):** —"
@@ -723,6 +759,8 @@ def run_viewer(
         print(f"  Ditto leader hardware: polling {port} (torque_off, no force feedback)")
         if not hardware.is_receiving:
             print("  Waiting for valid encoder reads (sliders/gizmos work meanwhile).")
+    if sharpa_follower is not None:
+        print("  Sharpa follower: streaming retargeted index + thumb joints.")
     print("Press Ctrl+C to exit.")
 
     poll_interval = (
@@ -756,6 +794,8 @@ def run_viewer(
     finally:
         if hardware is not None:
             hardware.stop()
+        if sharpa_follower is not None:
+            sharpa_follower.stop()
 
 
 def main() -> None:

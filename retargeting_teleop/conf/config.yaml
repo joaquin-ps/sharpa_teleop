@@ -3,6 +3,7 @@ defaults:
   - hand_config: ditto_7dof_leader_only
   - motor_models: default
   - joint_configs: default
+  - sharpa: default
   - _self_
 
 control_frequency: 200

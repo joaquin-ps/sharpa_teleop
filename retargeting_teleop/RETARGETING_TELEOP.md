@@ -15,21 +15,40 @@ python retargeting_teleop/viz/view_assets.py
 
 Options: `--leader-only`, `--sharpa-only`
 
-## Ditto leader + viewer
+## Hardware: Ditto leader + Sharpa follower
 
-Physical Ditto hand drives the viewer (leader-only, torque off):
+Hardware is **off by default** (viewer only). Opt in per interface: the
+physical Ditto hand drives the viewer (leader-only, torque off) with `--ditto`,
+and retargeted index/thumb joints stream to the physical Sharpa Wave hand with
+`--sharpa`:
 
 ```bash
-dynamixel-port --latency-timer 1   # before real hardware
+dynamixel-port --latency-timer 1   # before real Ditto hardware
 
-python retargeting_teleop/viz/view_teleop.py
-python retargeting_teleop/viz/view_teleop.py u2d2.usb_port=/dev/ttyUSB0
-python retargeting_teleop/viz/view_teleop.py u2d2.fake_u2d2=true   # no USB
+python retargeting_teleop/viz/view_teleop.py                   # viewer only, no hardware
+python retargeting_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
+python retargeting_teleop/viz/view_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
+python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true  # no Ditto USB
 ```
 
-Hand config: `conf/hand_config/ditto_7dof_leader_only.yaml` (default). Override with `hand_config=...` or edit that file. `motor_models` / `joint_configs` still come from `finger_aloha` via Hydra searchpath.
+Enable hardware interfaces independently:
 
-Hardware adapters live in `hardware_interfaces/` (`ditto_leader/` for encoder reads, `sharpa_follower/` for future Sharpa commands).
+| Flag | Effect |
+| --- | --- |
+| `--ditto` | Enable Ditto leader hardware (physical encoders drive Ditto) |
+| `--sharpa` | Enable Sharpa follower hardware (stream retargeted joints to the hand) |
+| (none) | Viewer only (same as `view_assets.py`) |
+
+Each enabled interface also has a runtime checkbox in the **Controls** GUI folder
+("Drive Ditto from leader hardware", "Send retargeting to Sharpa hardware").
+
+Configs:
+- Ditto: `conf/hand_config/ditto_7dof_leader_only.yaml` (default). Override with `hand_config=...`. `motor_models` / `joint_configs` come from `finger_aloha` via Hydra searchpath.
+- Sharpa: `conf/sharpa/default.yaml` (serial, enabled joints, speed/current coeffs, IO rate). `angle_overrides_deg` widens the SDK position-clamp ROM per joint (e.g. more thumb travel) without editing the `sharpa_controller` submodule.
+
+Hardware adapters live in `hardware_interfaces/`:
+- `ditto_leader/` — encoder reads from the Ditto leader.
+- `sharpa_follower/` — sends retargeted `sharpa_q` to the Sharpa Wave hand. `conventions.py` maps Sharpa URDF joints → SDK joints (and holds per-joint sign/offset calibration hooks); `session.py` owns the SDK connection.
 
 ## Viewer quick reference
 
