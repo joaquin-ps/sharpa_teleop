@@ -1,4 +1,4 @@
-"""Repository and submodule paths for sharpa_teleop."""
+"""Repository and submodule paths for joint_teleop."""
 
 from __future__ import annotations
 

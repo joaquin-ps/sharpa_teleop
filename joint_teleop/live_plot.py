@@ -6,15 +6,15 @@ Plots leader (Dynamixel) vs follower (Sharpa) states in real time to diagnose
 oscillations, mapping error, and force-feedback behavior.
 
 Usage (from repo root):
-    python sharpa_teleop/live_plot.py
-    python sharpa_teleop/live_plot.py u2d2.usb_port=/dev/ttyUSB0
+    python joint_teleop/live_plot.py
+    python joint_teleop/live_plot.py u2d2.usb_port=/dev/ttyUSB0
 
-From sharpa_teleop/ package dir:
+From joint_teleop/ package dir:
     python live_plot.py
 
 Optional flags (stripped before Hydra):
-    python sharpa_teleop/live_plot.py --position
-    python sharpa_teleop/live_plot.py --current --velocity --torque
+    python joint_teleop/live_plot.py --position
+    python joint_teleop/live_plot.py --current --velocity --torque
 """
 
 from __future__ import annotations
@@ -36,8 +36,8 @@ import numpy as np
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 
-from sharpa_teleop._paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
-from sharpa_teleop.sharpa_ditto_teleop import SharpaDittoTeleop  # noqa: E402
+from joint_teleop._paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from joint_teleop.sharpa_ditto_teleop import SharpaDittoTeleop  # noqa: E402
 
 
 def _build_overrides(cli_args: list[str]) -> list[str]:
