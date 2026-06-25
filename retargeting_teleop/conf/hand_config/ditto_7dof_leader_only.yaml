@@ -2,34 +2,34 @@
 #
 # Ditto 7-DoF leader only: read encoders, no follower, no force feedback.
 # Motor order matches retargeting DITTO_LEADER_JOINT_NAMES:
-#   index: 21, 22, 23  |  thumb: 11, 12, 13, 14
+#   index: 121, 122, 123  |  thumb: 111, 112, 113, 114
 
 control_frequency: 200
 
 leader:
   mode: torque_off
-  motor_ids: [21, 22, 23, 11, 12, 13, 14]
+  motor_ids: [121, 122, 123, 111, 112, 113, 114]
   general_settings: {}
   joint_settings:
-  - motor_id: 21
+  - motor_id: 121
     joint_settings:
       motor_model: XC330
-  - motor_id: 22
+  - motor_id: 122
     joint_settings:
       motor_model: XC330
-  - motor_id: 23
+  - motor_id: 123
     joint_settings:
       motor_model: XC330
-  - motor_id: 11
+  - motor_id: 111
     joint_settings:
       motor_model: XC330
-  - motor_id: 12
+  - motor_id: 112
     joint_settings:
       motor_model: XC330
-  - motor_id: 13
+  - motor_id: 113
     joint_settings:
       motor_model: XC330
-  - motor_id: 14
+  - motor_id: 114
     joint_settings:
       motor_model: XC330
 

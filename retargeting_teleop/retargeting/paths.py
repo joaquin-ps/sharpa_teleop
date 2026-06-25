@@ -30,7 +30,7 @@ DITTO_THUMB_JOINT_NAMES: tuple[str, ...] = DITTO_LEADER_JOINT_NAMES[3:]
 # Hardware→URDF sign correction (index joints negated): see hardware_interfaces/ditto_leader/conventions.py
 
 # Dynamixel IDs on the physical Ditto leader (same order as DITTO_LEADER_JOINT_NAMES).
-DITTO_LEADER_MOTOR_IDS: tuple[int, ...] = (21, 22, 23, 11, 12, 13, 14)
+DITTO_LEADER_MOTOR_IDS: tuple[int, ...] = (121, 122, 123, 111, 112, 113, 114)
 
 # Default Hydra hand_config for leader-only visualization (retargeting_teleop/conf/).
 DITTO_LEADER_ONLY_HAND_CONFIG = "ditto_7dof_leader_only"
