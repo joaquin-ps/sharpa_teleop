@@ -31,6 +31,18 @@ _DITTO_PADS: dict[FingerName, str] = {
 
 
 @dataclass(frozen=True)
+class LeaderForceFeedback:
+    """Sharpa pad force mapped onto the Ditto leader for one finger."""
+
+    force_in_leader_base: np.ndarray  # 3D force at the leader pad (leader base axes)
+    pad_origin_in_leader_base: np.ndarray  # leader pad origin (leader base frame)
+    joint_torques: np.ndarray  # would-be leader joint torques (Nm)
+    joint_names: tuple[str, ...]  # leader joints, same order as joint_torques
+    joint_origins: np.ndarray  # (n,3) joint origins in leader base frame
+    joint_axes: np.ndarray  # (n,3) unit rotation axes in leader base frame
+
+
+@dataclass(frozen=True)
 class RetargetResult:
     """Output of one Ditto → Sharpa retargeting step."""
 
@@ -106,6 +118,54 @@ class DittoToSharpaRetargeter:
             else self.thumb_cartesian_scale
         )
         return scale_pad_translation_in_retarget(pad_in_retarget, scale)
+
+    def leader_force_and_torque(
+        self,
+        finger: FingerName,
+        sharpa_force_in_sharpa_base: np.ndarray,
+        sharpa_q: np.ndarray,
+        ditto_q: np.ndarray,
+    ) -> LeaderForceFeedback:
+        """Map an estimated Sharpa pad force onto the Ditto leader (no rendering).
+
+        The two hands correspond through their ``retarget_base`` frames, so the
+        force is re-expressed there, scaled for power-consistency under the
+        per-finger cartesian scale (``F_leader = scale · F_sharpa``), rotated into
+        the leader base frame, and projected onto leader joints via ``Jᵀ``.
+        """
+        scale = (
+            self.index_cartesian_scale
+            if finger == "index"
+            else self.thumb_cartesian_scale
+        )
+        r_sharpa_rb = frame_pose_in_base(
+            self.sharpa.model, self.sharpa.data, sharpa_q, SHARPA_RETARGET_BASE_LINK
+        ).rotation
+        force_in_retarget = r_sharpa_rb.T @ np.asarray(
+            sharpa_force_in_sharpa_base, dtype=float
+        )
+
+        r_ditto_rb = frame_pose_in_base(
+            self.ditto.model, self.ditto.data, ditto_q, DITTO_RETARGET_BASE_LINK
+        ).rotation
+        force_in_leader_base = scale * (r_ditto_rb @ force_in_retarget)
+
+        j_lin = self.ditto.pad_jacobian(ditto_q, finger)[:3, :]
+        joint_torques = j_lin.T @ force_in_leader_base
+        pad_origin = self.ditto.pad_pose_in_base(ditto_q, finger).translation
+
+        joint_frames = self.ditto.finger_joint_frames_in_base(ditto_q, finger)
+        joint_origins = np.asarray([o for o, _ in joint_frames], dtype=float)
+        joint_axes = np.asarray([a for _, a in joint_frames], dtype=float)
+
+        return LeaderForceFeedback(
+            force_in_leader_base=force_in_leader_base,
+            pad_origin_in_leader_base=np.asarray(pad_origin, dtype=float),
+            joint_torques=joint_torques,
+            joint_names=self.ditto.finger_joint_names(finger),
+            joint_origins=joint_origins,
+            joint_axes=joint_axes,
+        )
 
     def retarget(
         self,

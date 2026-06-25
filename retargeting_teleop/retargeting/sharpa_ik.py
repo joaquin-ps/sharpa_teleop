@@ -8,7 +8,12 @@ from typing import Literal
 import numpy as np
 import pinocchio as pin
 
-from .ik_utils import IkSolveParams, frame_pose_in_base, solve_pad_ik
+from .ik_utils import (
+    IkSolveParams,
+    frame_pose_in_base,
+    joint_v_indices,
+    solve_pad_ik,
+)
 from .paths import (
     SHARPA_INDEX_JOINT_NAMES,
     SHARPA_RETARGETING_PAD_LINKS,
@@ -44,6 +49,47 @@ class SharpaFingerIK:
 
     def pad_pose_in_base(self, q: np.ndarray, finger: FingerName) -> pin.SE3:
         return frame_pose_in_base(self.model, self.data, q, _FINGER_TO_PAD[finger])
+
+    def finger_joint_names(self, finger: FingerName) -> tuple[str, ...]:
+        return _FINGER_TO_JOINTS[finger]
+
+    def pad_jacobian(self, q: np.ndarray, finger: FingerName) -> np.ndarray:
+        """6×n pad Jacobian (base-aligned axes at the pad) for the finger joints."""
+        frame_id = self.model.getFrameId(_FINGER_TO_PAD[finger])
+        pin.forwardKinematics(self.model, self.data, q)
+        pin.updateFramePlacements(self.model, self.data)
+        jacobian = pin.computeFrameJacobian(
+            self.model,
+            self.data,
+            q,
+            frame_id,
+            pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
+        )
+        v_idx = joint_v_indices(self.model, _FINGER_TO_JOINTS[finger])
+        return jacobian[:, v_idx]
+
+    def estimate_pad_force(
+        self,
+        q: np.ndarray,
+        finger: FingerName,
+        finger_joint_torques: np.ndarray,
+        *,
+        damping: float = 1e-3,
+    ) -> np.ndarray:
+        """Least-squares 3D pad force [fx,fy,fz] from finger joint torques.
+
+        Models the contact as a pure force at the pad (no moment) and uses the
+        linear block ``J_v`` (3×n) of the pad Jacobian. Solves ``tau = J_vᵀ F``
+        for ``F`` via damped least squares (``F = (J_v J_vᵀ + λ²I)⁻¹ J_v tau``);
+        overdetermined for both fingers (n>3). ``F`` is in base-aligned axes at
+        the pad origin. ``finger_joint_torques`` must be ordered like
+        ``finger_joint_names(finger)``.
+        """
+        j_lin = self.pad_jacobian(q, finger)[:3, :]
+        tau = np.asarray(finger_joint_torques, dtype=float)
+        lhs = j_lin @ j_lin.T + (damping**2) * np.eye(3)
+        rhs = j_lin @ tau
+        return np.linalg.solve(lhs, rhs)
 
     def solve_finger_pad(
         self,

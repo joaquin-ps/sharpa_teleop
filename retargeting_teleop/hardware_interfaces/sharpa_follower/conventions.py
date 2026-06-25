@@ -39,6 +39,12 @@ SHARPA_URDF_TO_SDK_OFFSET_RAD: dict[str, float] = {
 # SDK joint names driven by the follower (enabled for position control).
 SHARPA_FOLLOWER_SDK_JOINTS: tuple[str, ...] = tuple(SHARPA_URDF_TO_SDK_JOINT.values())
 
+# Global sign relating SDK-reported joint torque to the external contact wrench.
+# The SDK reports the actuator's holding torque, which opposes the applied force,
+# so we flip it so the estimated pad force points *against* the external push.
+# (This is separate from SHARPA_URDF_TO_SDK_SIGN, which fixes joint-axis direction.)
+SHARPA_TORQUE_FEEDBACK_SIGN: float = -1.0
+
 
 def urdf_q_to_sdk_targets(
     sharpa_q: np.ndarray,

@@ -50,6 +50,31 @@ Hardware adapters live in `hardware_interfaces/`:
 - `ditto_leader/` — encoder reads from the Ditto leader.
 - `sharpa_follower/` — sends retargeted `sharpa_q` to the Sharpa Wave hand. `conventions.py` maps Sharpa URDF joints → SDK joints (and holds per-joint sign/offset calibration hooks); `session.py` owns the SDK connection.
 
+## Headless teleop (no viewer)
+
+Same core loop as `view_teleop.py` but without Viser — read the Ditto leader,
+retarget, stream to the Sharpa follower, and log estimated pad forces +
+would-be leader joint torques. At least one of `--ditto` / `--sharpa` is
+required (there is nothing to render headlessly):
+
+```bash
+python retargeting_teleop/run_teleop.py --ditto --sharpa
+python retargeting_teleop/run_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
+python retargeting_teleop/run_teleop.py --ditto --rate 200 --retarget-rate 40
+```
+
+`--rate` is the cheap leader-poll / force-loop rate; `--retarget-rate` is the
+expensive IK rate. They are **decoupled on purpose**: the retargeting IK
+(~1.7 ms with `IK_STREAM`) shares the GIL with finger_aloha's 200 Hz read
+thread, so running it at full poll rate starves that thread. Keep
+`--retarget-rate` modest (~40 Hz — the Sharpa hand can't track faster anyway).
+
+The shared, Viser-free core lives in `teleop/engine.py`
+(`RetargetTeleopEngine`): it owns the retargeter plus the hardware session
+references and exposes `poll_leader()`, `retarget()`, and
+`estimate_force_feedback()`. Both the GUI viewer and the headless runner drive
+this same engine, so their behavior stays in sync.
+
 ## Viewer quick reference
 
 - **Green** — `retarget_base` on each hand

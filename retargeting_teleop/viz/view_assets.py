@@ -35,17 +35,20 @@ from viser.extras import ViserUrdf
 from viser.extras._urdf import _viser_name_from_frame
 
 from retargeting.ditto_ik import DittoFingerIK, FingerName
-from retargeting.ik_utils import IK_INTERACTIVE, IK_POLISH, IkSolveParams
+from retargeting.ik_utils import IK_INTERACTIVE, IK_POLISH, IK_STREAM, IkSolveParams
 from retargeting.retargeter import DittoToSharpaRetargeter, RetargetResult
 from retargeting.sharpa_ik import SharpaFingerIK
 from retargeting.paths import (
+    DITTO_INDEX_JOINT_NAMES,
     DITTO_LEADER_URDF,
+    DITTO_THUMB_JOINT_NAMES,
     DITTO_VIZ_FRAME_LINKS,
     SHARPA_RIGHT_URDF,
     SHARPA_VIZ_FRAME_LINKS,
     SHARPA_LOCKED_JOINT_PREFIXES,
     SHARPA_SLIDER_JOINT_PREFIXES,
 )
+from teleop.engine import RetargetTeleopEngine
 from hardware_interfaces.ditto_leader import LeaderHardwareSession
 
 if TYPE_CHECKING:
@@ -73,6 +76,23 @@ SHARPA_RETARGET_TARGET_STYLES: dict[str, dict] = {
     },
 }
 
+# Estimated task-space force arrows on the Sharpa pads (sanity check).
+FORCE_ARROW_COLORS: dict[str, tuple[int, int, int]] = {
+    "index": (255, 60, 60),
+    "thumb": (255, 0, 200),
+}
+# Meters of arrow length per Newton of estimated force.
+FORCE_VIZ_DEFAULT_SCALE = 0.03
+
+# Would-be leader joint-torque arrows (drawn along each joint's rotation axis).
+JOINT_TORQUE_ARROW_COLOR = (80, 220, 80)
+# Meters of arrow length per N·m of joint torque.
+JOINT_TORQUE_VIZ_DEFAULT_SCALE = 0.5
+# Slider range for the per-joint torque readout (N·m).
+LEADER_TORQUE_SLIDER_RANGE = 0.5
+# Throttle for the (relatively heavy) force/torque viz update.
+FORCE_VIZ_UPDATE_HZ = 25.0
+
 # Fixed Ditto leader mount pose in the viewer (base_link frame relative to world).
 DITTO_DEFAULT_MOUNT_POSITION = (-0.046, -0.12, 0.1)
 DITTO_DEFAULT_MOUNT_RPY_DEG = (90.0, 0.0, 90.0)
@@ -82,6 +102,9 @@ SHARPA_DEFAULT_MOUNT_POSITION = (0.0, 0.12, 0.0)
 
 VIZ_IDLE_POLL_S = 1.0
 VIZ_HARDWARE_POLL_HZ = 60.0
+# Decoupled rate for the expensive retarget IK under live hardware, so it does
+# not starve the 200 Hz finger_aloha read thread (shared GIL).
+HW_RETARGET_HZ = 40.0
 
 
 def _style_for_link(link_name: str) -> dict:
@@ -346,6 +369,55 @@ def _sync_sharpa_retarget_target_frames(
         handle.wxyz = wxyz
 
 
+def _update_force_arrows(
+    server: viser.ViserServer,
+    robot: RobotViz,
+    forces_in_base: dict[str, tuple[np.ndarray, np.ndarray]],
+    scale: float,
+    *,
+    name: str = "force_estimate",
+) -> None:
+    """Draw pad force arrows in a robot's base frame (child of its mount)."""
+    points = []
+    colors = []
+    for finger in ("index", "thumb"):
+        origin, force = forces_in_base[finger]
+        points.append([origin, origin + scale * force])
+        colors.append(FORCE_ARROW_COLORS[finger])
+    server.scene.add_arrows(
+        f"{robot.root_name}/{name}",
+        points=np.asarray(points, dtype=float),
+        colors=np.asarray(colors, dtype=np.uint8),
+        shaft_radius=0.0015,
+        head_radius=0.004,
+        head_length=0.008,
+    )
+
+
+def _update_joint_torque_arrows(
+    server: viser.ViserServer,
+    robot: RobotViz,
+    joint_torques: list[tuple[np.ndarray, np.ndarray, float]],
+    scale: float,
+    *,
+    name: str = "leader_joint_torque",
+) -> None:
+    """Draw torque arrows along each joint axis (moment = torque·axis), base frame."""
+    points = []
+    for origin, axis, torque in joint_torques:
+        points.append([origin, origin + scale * torque * axis])
+    server.scene.add_arrows(
+        f"{robot.root_name}/{name}",
+        points=np.asarray(points, dtype=float),
+        colors=np.asarray(
+            [JOINT_TORQUE_ARROW_COLOR] * len(points), dtype=np.uint8
+        ),
+        shaft_radius=0.0012,
+        head_radius=0.0032,
+        head_length=0.006,
+    )
+
+
 def _create_joint_sliders(
     server: viser.ViserServer,
     robot: RobotViz,
@@ -489,6 +561,10 @@ def run_viewer(
         help_lines.append("- **Drive Ditto from leader hardware** for physical encoders")
     if sharpa_follower is not None:
         help_lines.append("- **Send retargeting to Sharpa hardware** to drive the real hand")
+        help_lines.append(
+            "- **Estimated pad forces** drawn on Sharpa + leader pads; "
+            "leader joint torques shown (not sent to hardware)"
+        )
     server.gui.add_markdown("\n".join(help_lines))
     server.initial_camera.position = (0.35, -0.45, 0.25)
     server.initial_camera.look_at = (0.05, 0.0, 0.05)
@@ -500,11 +576,17 @@ def run_viewer(
     ditto_ik: DittoFingerIK | None = None
     sharpa_ik: SharpaFingerIK | None = None
     retargeter: DittoToSharpaRetargeter | None = None
+    engine: RetargetTeleopEngine | None = None
     sharpa_retarget_targets: SharpaRetargetTargetViz | None = None
     retarget_error_markdown: viser.GuiMarkdownHandle | None = None
     live_retarget_enabled = {"value": True}
     hardware_drive_enabled = {"value": hardware is not None}
     sharpa_send_enabled = {"value": sharpa_follower is not None}
+    force_viz_enabled = {"value": sharpa_follower is not None}
+    force_viz_scale = {"value": FORCE_VIZ_DEFAULT_SCALE}
+    torque_viz_scale = {"value": JOINT_TORQUE_VIZ_DEFAULT_SCALE}
+    force_status_markdown: viser.GuiMarkdownHandle | None = None
+    leader_torque_sliders: dict[str, viser.GuiSliderHandle] = {}
 
     def _retarget_ditto_to_sharpa(
         solve_params: IkSolveParams | None = IK_POLISH,
@@ -515,7 +597,7 @@ def run_viewer(
             or sharpa_robot is None
             or ditto_ik is None
             or sharpa_ik is None
-            or retargeter is None
+            or engine is None
         ):
             return
         ditto_joint_names = list(ditto_robot.viser_urdf.get_actuated_joint_names())
@@ -526,11 +608,8 @@ def run_viewer(
         sharpa_q_seed = _viser_cfg_to_pin_q(
             sharpa_ik, _build_full_configuration(sharpa_robot), sharpa_joint_names
         )
-        result = retargeter.retarget(
-            ditto_q,
-            sharpa_q_seed,
-            solve_params=solve_params,
-        )
+        # Engine runs the retarget and streams to follower hardware (if enabled).
+        result = engine.retarget(ditto_q, sharpa_q_seed, solve_params=solve_params)
         _set_configuration_from_pin_q(sharpa_robot, sharpa_ik, result.sharpa_q)
         if sharpa_retarget_targets is not None:
             _sync_sharpa_retarget_target_frames(sharpa_retarget_targets, result)
@@ -539,8 +618,71 @@ def run_viewer(
                 f"**Retarget IK error (rad):** index {result.index_residual:.3f}, "
                 f"thumb {result.thumb_residual:.3f}"
             )
-        if sharpa_follower is not None and sharpa_send_enabled["value"]:
-            sharpa_follower.send_q(result.sharpa_q)
+
+    def _update_force_estimate(last_log: dict[str, float]) -> None:
+        if engine is None or sharpa_robot is None or sharpa_ik is None:
+            return
+        sharpa_joint_names = list(sharpa_robot.viser_urdf.get_actuated_joint_names())
+        q_seed = _viser_cfg_to_pin_q(
+            sharpa_ik, _build_full_configuration(sharpa_robot), sharpa_joint_names
+        )
+        ditto_q = None
+        if ditto_robot is not None and ditto_ik is not None:
+            ditto_joint_names = list(ditto_robot.viser_urdf.get_actuated_joint_names())
+            ditto_q = _viser_cfg_to_pin_q(
+                ditto_ik, _build_full_configuration(ditto_robot), ditto_joint_names
+            )
+        sample = engine.estimate_force_feedback(sharpa_q_seed=q_seed, ditto_q=ditto_q)
+        if sample is None:
+            return
+
+        _update_force_arrows(
+            server, sharpa_robot, sample.sharpa_forces, force_viz_scale["value"]
+        )
+        if force_status_markdown is not None:
+            force_status_markdown.content = (
+                f"**Estimated pad force (N):** index {sample.magnitudes['index']:.2f}, "
+                f"thumb {sample.magnitudes['thumb']:.2f}"
+            )
+
+        if ditto_robot is not None:
+            _update_force_arrows(
+                server,
+                ditto_robot,
+                sample.leader_forces,
+                force_viz_scale["value"],
+                name="leader_force",
+            )
+            _update_joint_torque_arrows(
+                server, ditto_robot, sample.torque_arrows, torque_viz_scale["value"]
+            )
+            for name, slider in leader_torque_sliders.items():
+                slider.value = float(
+                    np.clip(
+                        sample.leader_torques.get(name, 0.0),
+                        -LEADER_TORQUE_SLIDER_RANGE,
+                        LEADER_TORQUE_SLIDER_RANGE,
+                    )
+                )
+
+        now = time.time()
+        if now - last_log["t"] >= 0.5:
+            last_log["t"] = now
+            idx_f = sample.sharpa_force_vec["index"]
+            thb_f = sample.sharpa_force_vec["thumb"]
+            print(
+                f"[force] index |F|={sample.magnitudes['index']:.2f}N "
+                f"({idx_f[0]:+.2f},{idx_f[1]:+.2f},{idx_f[2]:+.2f})  "
+                f"thumb |F|={sample.magnitudes['thumb']:.2f}N "
+                f"({thb_f[0]:+.2f},{thb_f[1]:+.2f},{thb_f[2]:+.2f})"
+            )
+            if sample.leader_torques:
+                print(
+                    "  leader tau(Nm): "
+                    + ", ".join(
+                        f"{n} {t:+.3f}" for n, t in sample.leader_torques.items()
+                    )
+                )
 
     hardware_status_markdown: viser.GuiMarkdownHandle | None = None
     sharpa_status_markdown: viser.GuiMarkdownHandle | None = None
@@ -561,12 +703,62 @@ def run_viewer(
             @sharpa_send.on_update
             def _(_: viser.GuiEvent) -> None:
                 sharpa_send_enabled["value"] = bool(sharpa_send.value)
+                if engine is not None:
+                    engine.sharpa_send_enabled = bool(sharpa_send.value)
                 if sharpa_send.value:
                     _retarget_ditto_to_sharpa(IK_POLISH)
 
             sharpa_status_markdown = server.gui.add_markdown(
                 "**Sharpa hardware:** streaming retargeted joints"
             )
+
+            force_viz = server.gui.add_checkbox(
+                "Show estimated pad forces",
+                initial_value=force_viz_enabled["value"],
+            )
+
+            @force_viz.on_update
+            def _(_: viser.GuiEvent) -> None:
+                force_viz_enabled["value"] = bool(force_viz.value)
+
+            force_scale_slider = server.gui.add_slider(
+                "Force arrow scale (m/N)",
+                min=0.005,
+                max=0.2,
+                step=0.005,
+                initial_value=force_viz_scale["value"],
+            )
+
+            @force_scale_slider.on_update
+            def _(_: viser.GuiEvent) -> None:
+                force_viz_scale["value"] = float(force_scale_slider.value)
+
+            torque_scale_slider = server.gui.add_slider(
+                "Joint torque arrow scale (m/Nm)",
+                min=0.05,
+                max=3.0,
+                step=0.05,
+                initial_value=torque_viz_scale["value"],
+            )
+
+            @torque_scale_slider.on_update
+            def _(_: viser.GuiEvent) -> None:
+                torque_viz_scale["value"] = float(torque_scale_slider.value)
+
+            force_status_markdown = server.gui.add_markdown(
+                "**Estimated pad force (N):** waiting for torque reads…"
+            )
+
+            with server.gui.add_folder("Would-be leader joint torque (Nm)"):
+                for _jname in (*DITTO_INDEX_JOINT_NAMES, *DITTO_THUMB_JOINT_NAMES):
+                    leader_torque_sliders[_jname] = server.gui.add_slider(
+                        _jname,
+                        min=-LEADER_TORQUE_SLIDER_RANGE,
+                        max=LEADER_TORQUE_SLIDER_RANGE,
+                        step=0.001,
+                        initial_value=0.0,
+                        disabled=True,
+                    )
 
         if hardware is not None:
             hardware_drive = server.gui.add_checkbox(
@@ -649,7 +841,10 @@ def run_viewer(
         robots.append(sharpa_robot)
 
     if show_leader and show_sharpa:
-        retargeter = DittoToSharpaRetargeter()
+        engine = RetargetTeleopEngine(
+            hardware=hardware, sharpa_follower=sharpa_follower
+        )
+        retargeter = engine.retargeter
         assert sharpa_robot is not None and sharpa_ik is not None
         if sharpa_follower is not None:
             print("Connecting Sharpa follower hardware...")
@@ -658,6 +853,7 @@ def run_viewer(
             except Exception as exc:  # noqa: BLE001
                 print(f"  Sharpa follower unavailable, continuing without it: {exc}")
                 sharpa_follower = None
+                engine.sharpa_follower = None
                 sharpa_send_enabled["value"] = False
                 if sharpa_status_markdown is not None:
                     sharpa_status_markdown.content = "**Sharpa hardware:** unavailable"
@@ -763,9 +959,11 @@ def run_viewer(
         print("  Sharpa follower: streaming retargeted index + thumb joints.")
     print("Press Ctrl+C to exit.")
 
-    poll_interval = (
-        1.0 / VIZ_HARDWARE_POLL_HZ if hardware is not None else VIZ_IDLE_POLL_S
-    )
+    needs_fast_poll = hardware is not None or sharpa_follower is not None
+    poll_interval = 1.0 / VIZ_HARDWARE_POLL_HZ if needs_fast_poll else VIZ_IDLE_POLL_S
+    last_force_log = {"t": 0.0}
+    last_force_viz = {"t": 0.0}
+    last_hw_retarget = {"t": 0.0}
     try:
         while True:
             if (
@@ -779,7 +977,11 @@ def run_viewer(
                 if angles is not None:
                     _apply_ditto_cfg_from_angles(ditto_robot, angles)
                     _sync_ik_gizmos(ditto_robot, ditto_ik)
-                    _retarget_ditto_to_sharpa(IK_POLISH)
+                    # Retarget IK is expensive; run it decoupled from the poll so
+                    # it does not starve the 200 Hz hardware read thread.
+                    if time.time() - last_hw_retarget["t"] >= 1.0 / HW_RETARGET_HZ:
+                        last_hw_retarget["t"] = time.time()
+                        _retarget_ditto_to_sharpa(IK_STREAM)
                     if hardware_status_markdown is not None:
                         hardware_status_markdown.content = (
                             "**Hardware status:** receiving encoder data"
@@ -788,6 +990,17 @@ def run_viewer(
                     hardware_status_markdown.content = (
                         "**Hardware status:** no valid reads yet — check USB / power / port"
                     )
+
+            if (
+                sharpa_follower is not None
+                and force_viz_enabled["value"]
+                and sharpa_robot is not None
+                and sharpa_ik is not None
+                and time.time() - last_force_viz["t"] >= 1.0 / FORCE_VIZ_UPDATE_HZ
+            ):
+                last_force_viz["t"] = time.time()
+                _update_force_estimate(last_force_log)
+
             time.sleep(poll_interval)
     except KeyboardInterrupt:
         print("\nShutting down viewer...")

@@ -8,7 +8,12 @@ from typing import Literal
 import numpy as np
 import pinocchio as pin
 
-from .ik_utils import IkSolveParams, frame_pose_in_base, solve_pad_ik
+from .ik_utils import (
+    IkSolveParams,
+    frame_pose_in_base,
+    joint_v_indices,
+    solve_pad_ik,
+)
 from .paths import (
     DITTO_FINGERTIP_LINKS,
     DITTO_INDEX_JOINT_NAMES,
@@ -44,6 +49,41 @@ class DittoFingerIK:
 
     def pad_pose_in_base(self, q: np.ndarray, finger: FingerName) -> pin.SE3:
         return frame_pose_in_base(self.model, self.data, q, _FINGER_TO_PAD[finger])
+
+    def finger_joint_names(self, finger: FingerName) -> tuple[str, ...]:
+        return _FINGER_TO_JOINTS[finger]
+
+    def finger_joint_frames_in_base(
+        self, q: np.ndarray, finger: FingerName
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
+        """(origin, rotation_axis) per finger joint, in base frame (axis is unit)."""
+        pin.computeJointJacobians(self.model, self.data, q)
+        frames: list[tuple[np.ndarray, np.ndarray]] = []
+        for name in _FINGER_TO_JOINTS[finger]:
+            jid = self.model.getJointId(name)
+            idx_v = self.model.joints[jid].idx_v
+            jac = pin.getJointJacobian(
+                self.model, self.data, jid, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+            )
+            axis = np.asarray(jac[3:6, idx_v], dtype=float)
+            origin = np.asarray(self.data.oMi[jid].translation, dtype=float)
+            frames.append((origin, axis))
+        return frames
+
+    def pad_jacobian(self, q: np.ndarray, finger: FingerName) -> np.ndarray:
+        """6×n pad Jacobian (base-aligned axes at the pad) for the finger joints."""
+        frame_id = self.model.getFrameId(_FINGER_TO_PAD[finger])
+        pin.forwardKinematics(self.model, self.data, q)
+        pin.updateFramePlacements(self.model, self.data)
+        jacobian = pin.computeFrameJacobian(
+            self.model,
+            self.data,
+            q,
+            frame_id,
+            pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
+        )
+        v_idx = joint_v_indices(self.model, _FINGER_TO_JOINTS[finger])
+        return jacobian[:, v_idx]
 
     def solve_finger_pad(
         self,

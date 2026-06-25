@@ -23,9 +23,21 @@ from sharpa_hand import (  # noqa: E402
 
 from hardware_interfaces.sharpa_follower.conventions import (  # noqa: E402
     SHARPA_FOLLOWER_SDK_JOINTS,
+    SHARPA_TORQUE_FEEDBACK_SIGN,
     SHARPA_URDF_TO_SDK_JOINT,
+    SHARPA_URDF_TO_SDK_OFFSET_RAD,
+    SHARPA_URDF_TO_SDK_SIGN,
     urdf_q_to_sdk_targets,
 )
+from retargeting.paths import (  # noqa: E402
+    SHARPA_INDEX_JOINT_NAMES,
+    SHARPA_THUMB_JOINT_NAMES,
+)
+
+_FINGER_URDF_JOINTS: dict[str, tuple[str, ...]] = {
+    "index": SHARPA_INDEX_JOINT_NAMES,
+    "thumb": SHARPA_THUMB_JOINT_NAMES,
+}
 
 
 class SharpaFollowerSession:
@@ -36,6 +48,7 @@ class SharpaFollowerSession:
         self.verbose = verbose
         self.sharpa_hand: SharpaHand | None = None
         self._q_index: dict[str, int] | None = None
+        self._finger_sdk_idx: dict[str, list[int]] = {}
         self._started = False
 
     @property
@@ -56,6 +69,12 @@ class SharpaFollowerSession:
         hand.start()
         self.sharpa_hand = hand
         self._q_index = {name: q_index_of(name) for name in SHARPA_URDF_TO_SDK_JOINT}
+        self._finger_sdk_idx = {
+            finger: [
+                JOINT_NAME_TO_INDEX[SHARPA_URDF_TO_SDK_JOINT[name]] for name in joints
+            ]
+            for finger, joints in _FINGER_URDF_JOINTS.items()
+        }
         self._started = True
         if self.verbose:
             print(f"  Sharpa follower joints: {list(SHARPA_FOLLOWER_SDK_JOINTS)}")
@@ -86,6 +105,35 @@ class SharpaFollowerSession:
             return
         targets = urdf_q_to_sdk_targets(sharpa_q, self._q_index.__getitem__)
         self.sharpa_hand.send_positions(targets)
+
+    def read_wrench_inputs(
+        self,
+        q_seed_full: np.ndarray,
+    ) -> tuple[np.ndarray, dict[str, np.ndarray]] | None:
+        """Read measured state for wrench estimation (no-op if idle).
+
+        Returns ``(q_full, finger_torques)`` where ``q_full`` is ``q_seed_full``
+        with the driven index/thumb joints overwritten by measured angles (URDF
+        convention), and ``finger_torques`` maps finger → joint torques (Nm) in
+        ``SHARPA_*_JOINT_NAMES`` order, sign-corrected to the URDF convention.
+        """
+        if not self._started or self.sharpa_hand is None or self._q_index is None:
+            return None
+        state = self.sharpa_hand.read_state()
+        angles = np.asarray(state.angles, dtype=float)
+        torques = np.asarray(state.torques, dtype=float)
+    
+        q = np.asarray(q_seed_full, dtype=float).copy()
+        finger_torques: dict[str, np.ndarray] = {}
+        for finger, joints in _FINGER_URDF_JOINTS.items():
+            taus = []
+            for name, sdk_i in zip(joints, self._finger_sdk_idx[finger]):
+                sign = SHARPA_URDF_TO_SDK_SIGN[name]
+                offset = SHARPA_URDF_TO_SDK_OFFSET_RAD[name]
+                q[self._q_index[name]] = (angles[sdk_i] - offset) / sign
+                taus.append(SHARPA_TORQUE_FEEDBACK_SIGN * sign * torques[sdk_i])
+            finger_torques[finger] = np.asarray(taus, dtype=float)
+        return q, finger_torques
 
     def stop(self) -> None:
         """Stop streaming and disconnect (idempotent)."""
