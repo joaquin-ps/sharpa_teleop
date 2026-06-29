@@ -167,51 +167,57 @@ class DittoToSharpaRetargeter:
             joint_axes=joint_axes,
         )
 
+    def _finger_weights(self, finger: FingerName) -> tuple[float, float]:
+        if finger == "index":
+            return self.index_position_weight, self.index_orientation_weight
+        return self.thumb_position_weight, self.thumb_orientation_weight
+
     def retarget(
         self,
         ditto_q: np.ndarray,
         sharpa_q_seed: np.ndarray,
         *,
         solve_params: IkSolveParams | None = None,
+        fingers: tuple[FingerName, ...] = ("index", "thumb"),
     ) -> RetargetResult:
-        """Compute Sharpa ``q`` so index/thumb pads match Ditto relative to ``retarget_base``."""
-        index_in_retarget = self.ditto_pad_relative_to_retarget(ditto_q, "index")
-        thumb_in_retarget = self.ditto_pad_relative_to_retarget(ditto_q, "thumb")
-        index_scaled = self._scaled_pad_in_retarget(index_in_retarget, "index")
-        thumb_scaled = self._scaled_pad_in_retarget(thumb_in_retarget, "thumb")
+        """Compute Sharpa ``q`` so the requested pads match Ditto relative to ``retarget_base``.
 
+        Disabled fingers (not in ``fingers``) keep their seed configuration; their
+        target/achieved poses report the seed pad pose and a zero residual.
+        """
         q = sharpa_q_seed.copy()
-        index_target = self.sharpa_pad_target_in_base(q, index_scaled)
-        q, index_residual = self.sharpa.solve_finger_pad(
-            "index",
-            index_target,
-            q,
-            position_weight=self.index_position_weight,
-            orientation_weight=self.index_orientation_weight,
-            solve_params=solve_params,
-        )
+        in_retarget: dict[FingerName, pin.SE3] = {}
+        target: dict[FingerName, pin.SE3] = {}
+        achieved: dict[FingerName, pin.SE3] = {}
+        residual: dict[FingerName, float] = {}
 
-        thumb_target = self.sharpa_pad_target_in_base(q, thumb_scaled)
-        q, thumb_residual = self.sharpa.solve_finger_pad(
-            "thumb",
-            thumb_target,
-            q,
-            position_weight=self.thumb_position_weight,
-            orientation_weight=self.thumb_orientation_weight,
-            solve_params=solve_params,
-        )
-
-        index_achieved = self.sharpa.pad_pose_in_base(q, "index")
-        thumb_achieved = self.sharpa.pad_pose_in_base(q, "thumb")
+        for finger in ("index", "thumb"):
+            in_retarget[finger] = self.ditto_pad_relative_to_retarget(ditto_q, finger)
+            if finger in fingers:
+                scaled = self._scaled_pad_in_retarget(in_retarget[finger], finger)
+                target[finger] = self.sharpa_pad_target_in_base(q, scaled)
+                pos_w, ori_w = self._finger_weights(finger)
+                q, residual[finger] = self.sharpa.solve_finger_pad(
+                    finger,
+                    target[finger],
+                    q,
+                    position_weight=pos_w,
+                    orientation_weight=ori_w,
+                    solve_params=solve_params,
+                )
+            else:
+                target[finger] = self.sharpa.pad_pose_in_base(q, finger)
+                residual[finger] = 0.0
+            achieved[finger] = self.sharpa.pad_pose_in_base(q, finger)
 
         return RetargetResult(
             sharpa_q=q,
-            index_residual=index_residual,
-            thumb_residual=thumb_residual,
-            index_pad_in_retarget=index_in_retarget,
-            thumb_pad_in_retarget=thumb_in_retarget,
-            index_target_in_sharpa_base=index_target,
-            thumb_target_in_sharpa_base=thumb_target,
-            index_achieved_in_sharpa_base=index_achieved,
-            thumb_achieved_in_sharpa_base=thumb_achieved,
+            index_residual=residual["index"],
+            thumb_residual=residual["thumb"],
+            index_pad_in_retarget=in_retarget["index"],
+            thumb_pad_in_retarget=in_retarget["thumb"],
+            index_target_in_sharpa_base=target["index"],
+            thumb_target_in_sharpa_base=target["thumb"],
+            index_achieved_in_sharpa_base=achieved["index"],
+            thumb_achieved_in_sharpa_base=achieved["thumb"],
         )

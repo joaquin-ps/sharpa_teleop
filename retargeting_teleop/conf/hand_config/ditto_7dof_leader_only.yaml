@@ -12,24 +12,31 @@ leader:
   general_settings: {}
   joint_settings:
   - motor_id: 121
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 122
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 123
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 111
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 112
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 113
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
   - motor_id: 114
+    plot_joint: true   # plotting tools skip joints set false
     joint_settings:
       motor_model: XC330
 

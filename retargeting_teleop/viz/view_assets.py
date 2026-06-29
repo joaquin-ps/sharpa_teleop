@@ -49,6 +49,7 @@ from retargeting.paths import (
     SHARPA_SLIDER_JOINT_PREFIXES,
 )
 from teleop.engine import RetargetTeleopEngine
+from teleop.force_sources import make_force_source
 from hardware_interfaces.ditto_leader import LeaderHardwareSession
 
 if TYPE_CHECKING:
@@ -377,13 +378,18 @@ def _update_force_arrows(
     *,
     name: str = "force_estimate",
 ) -> None:
-    """Draw pad force arrows in a robot's base frame (child of its mount)."""
+    """Draw pad force arrows in a robot's base frame (child of its mount).
+
+    Iterates over whatever fingers are present this tick: a tactile read can be
+    missing for a finger on any given frame, so we never assume both exist.
+    """
     points = []
     colors = []
-    for finger in ("index", "thumb"):
-        origin, force = forces_in_base[finger]
+    for finger, (origin, force) in forces_in_base.items():
         points.append([origin, origin + scale * force])
-        colors.append(FORCE_ARROW_COLORS[finger])
+        colors.append(FORCE_ARROW_COLORS.get(finger, (255, 255, 255)))
+    if not points:
+        return
     server.scene.add_arrows(
         f"{robot.root_name}/{name}",
         points=np.asarray(points, dtype=float),
@@ -406,6 +412,8 @@ def _update_joint_torque_arrows(
     points = []
     for origin, axis, torque in joint_torques:
         points.append([origin, origin + scale * torque * axis])
+    if not points:
+        return
     server.scene.add_arrows(
         f"{robot.root_name}/{name}",
         points=np.asarray(points, dtype=float),
@@ -541,6 +549,9 @@ def run_viewer(
     show_sharpa: bool = True,
     hardware: LeaderHardwareSession | None = None,
     sharpa_follower: "SharpaFollowerSession | None" = None,
+    force_mode: str = "estimate",
+    tactile_calibrate: bool = False,
+    tactile_debug: bool = False,
 ) -> None:
 
     for label, path in (
@@ -562,8 +573,8 @@ def run_viewer(
     if sharpa_follower is not None:
         help_lines.append("- **Send retargeting to Sharpa hardware** to drive the real hand")
         help_lines.append(
-            "- **Estimated pad forces** drawn on Sharpa + leader pads; "
-            "leader joint torques shown (not sent to hardware)"
+            "- **Pad forces** (estimate or tactile) drawn on Sharpa + leader pads; "
+            "would-be leader joint torques shown (not sent to hardware)"
         )
     server.gui.add_markdown("\n".join(help_lines))
     server.initial_camera.position = (0.35, -0.45, 0.25)
@@ -585,8 +596,38 @@ def run_viewer(
     force_viz_enabled = {"value": sharpa_follower is not None}
     force_viz_scale = {"value": FORCE_VIZ_DEFAULT_SCALE}
     torque_viz_scale = {"value": JOINT_TORQUE_VIZ_DEFAULT_SCALE}
+    force_source_state = {"value": force_mode}
+    tactile_ready = {"value": False}
     force_status_markdown: viser.GuiMarkdownHandle | None = None
+    force_source_dropdown: viser.GuiDropdownHandle | None = None
     leader_torque_sliders: dict[str, viser.GuiSliderHandle] = {}
+
+    def _set_force_source(mode: str) -> bool:
+        """Swap the engine's contact-force source; enable tactile lazily.
+
+        Returns True on success. Tactile/mix need the Sharpa tactile sensors; if
+        they cannot be enabled we keep the current source and report failure.
+        """
+        if engine is None:
+            return False
+        if mode in ("tactile", "mix"):
+            if sharpa_follower is None:
+                return False
+            if not tactile_ready["value"]:
+                try:
+                    ok = bool(sharpa_follower.enable_tactile(calibrate=tactile_calibrate))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  Tactile enable failed: {exc}")
+                    ok = False
+                tactile_ready["value"] = ok
+                if not ok:
+                    print(f"  Tactile sensors unavailable; staying on '{force_source_state['value']}'.")
+                    return False
+        engine.force_source = make_force_source(
+            engine.sharpa_ik, engine.fingers, mode, tactile_debug=tactile_debug
+        )
+        force_source_state["value"] = mode
+        return True
 
     def _retarget_ditto_to_sharpa(
         solve_params: IkSolveParams | None = IK_POLISH,
@@ -640,9 +681,11 @@ def run_viewer(
             server, sharpa_robot, sample.sharpa_forces, force_viz_scale["value"]
         )
         if force_status_markdown is not None:
+            mags = ", ".join(
+                f"{f} {sample.magnitudes[f]:.2f}" for f in sample.magnitudes
+            )
             force_status_markdown.content = (
-                f"**Estimated pad force (N):** index {sample.magnitudes['index']:.2f}, "
-                f"thumb {sample.magnitudes['thumb']:.2f}"
+                f"**Pad force (N) [{engine.force_source.name}]:** {mags}"
             )
 
         if ditto_robot is not None:
@@ -668,14 +711,14 @@ def run_viewer(
         now = time.time()
         if now - last_log["t"] >= 0.5:
             last_log["t"] = now
-            idx_f = sample.sharpa_force_vec["index"]
-            thb_f = sample.sharpa_force_vec["thumb"]
-            print(
-                f"[force] index |F|={sample.magnitudes['index']:.2f}N "
-                f"({idx_f[0]:+.2f},{idx_f[1]:+.2f},{idx_f[2]:+.2f})  "
-                f"thumb |F|={sample.magnitudes['thumb']:.2f}N "
-                f"({thb_f[0]:+.2f},{thb_f[1]:+.2f},{thb_f[2]:+.2f})"
-            )
+            parts = []
+            for finger in sample.sharpa_force_vec:
+                fv = sample.sharpa_force_vec[finger]
+                parts.append(
+                    f"{finger} |F|={sample.magnitudes[finger]:.2f}N "
+                    f"({fv[0]:+.2f},{fv[1]:+.2f},{fv[2]:+.2f})"
+                )
+            print(f"[force:{engine.force_source.name}] " + "  ".join(parts))
             if sample.leader_torques:
                 print(
                     "  leader tau(Nm): "
@@ -713,13 +756,28 @@ def run_viewer(
             )
 
             force_viz = server.gui.add_checkbox(
-                "Show estimated pad forces",
+                "Show pad forces + leader torques",
                 initial_value=force_viz_enabled["value"],
             )
 
             @force_viz.on_update
             def _(_: viser.GuiEvent) -> None:
                 force_viz_enabled["value"] = bool(force_viz.value)
+
+            force_source_dropdown = server.gui.add_dropdown(
+                "Force source",
+                options=("estimate", "tactile", "mix"),
+                initial_value=force_mode,
+            )
+
+            @force_source_dropdown.on_update
+            def _(_: viser.GuiEvent) -> None:
+                mode = str(force_source_dropdown.value)
+                if mode == force_source_state["value"]:
+                    return
+                if not _set_force_source(mode):
+                    # Revert the dropdown if the source could not be activated.
+                    force_source_dropdown.value = force_source_state["value"]
 
             force_scale_slider = server.gui.add_slider(
                 "Force arrow scale (m/N)",
@@ -857,6 +915,12 @@ def run_viewer(
                 sharpa_send_enabled["value"] = False
                 if sharpa_status_markdown is not None:
                     sharpa_status_markdown.content = "**Sharpa hardware:** unavailable"
+            else:
+                # Activate the requested initial force source (enables tactile
+                # sensors when needed); fall back to estimate if unavailable.
+                if force_mode != "estimate" and not _set_force_source(force_mode):
+                    if force_source_dropdown is not None:
+                        force_source_dropdown.value = "estimate"
         sharpa_retarget_targets = _add_sharpa_retarget_target_frames(server, sharpa_robot)
         retarget_error_markdown = server.gui.add_markdown(
             "**Retarget IK error (rad):** —"

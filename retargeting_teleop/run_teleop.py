@@ -57,6 +57,7 @@ class RunFlags:
     sharpa_hardware: bool = False
     rate_hz: float = DEFAULT_RATE_HZ
     retarget_hz: float = DEFAULT_RETARGET_HZ
+    enable_thumb: bool = True
 
 
 def _strip_run_flags() -> RunFlags:
@@ -69,6 +70,8 @@ def _strip_run_flags() -> RunFlags:
             flags.ditto_hardware = True
         elif arg == "--sharpa":
             flags.sharpa_hardware = True
+        elif arg == "--no-thumb":
+            flags.enable_thumb = False
         elif arg == "--rate":
             flags.rate_hz = float(next(args))
         elif arg.startswith("--rate="):
@@ -122,7 +125,10 @@ def main() -> None:
 
         sharpa_follower = SharpaFollowerSession(cfg, verbose=True)
 
-    engine = RetargetTeleopEngine(hardware=hardware, sharpa_follower=sharpa_follower)
+    fingers = ("index", "thumb") if flags.enable_thumb else ("index",)
+    engine = RetargetTeleopEngine(
+        hardware=hardware, sharpa_follower=sharpa_follower, fingers=fingers
+    )
 
     if sharpa_follower is not None:
         print("Connecting Sharpa follower hardware...")
@@ -162,15 +168,13 @@ def main() -> None:
             sample = engine.estimate_force_feedback()
             if sample is not None and now - last_log >= LOG_INTERVAL_S:
                 last_log = now
-                idx = sample.magnitudes["index"]
-                thb = sample.magnitudes["thumb"]
+                mags = "  ".join(
+                    f"{f} |F|={m:.2f}N" for f, m in sample.magnitudes.items()
+                )
                 taus = ", ".join(
                     f"{n} {t:+.3f}" for n, t in sample.leader_torques.items()
                 )
-                print(
-                    f"[force] index |F|={idx:.2f}N  thumb |F|={thb:.2f}N\n"
-                    f"  leader tau(Nm): {taus}"
-                )
+                print(f"[force] {mags}\n  leader tau(Nm): {taus}")
 
             time.sleep(period)
     except KeyboardInterrupt:

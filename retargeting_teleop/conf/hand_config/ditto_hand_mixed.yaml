@@ -1,0 +1,205 @@
+# @package hand_config
+#
+# MIXED mode (7-DOF Ditto leader, current mode):
+#   - INDEX  (121/122/123): joint_teleop-style direct joint teleop. Each leader
+#     joint maps 1:1 to a Sharpa index joint (control.joint_map), and force is
+#     rendered from the *measured* Sharpa joint torque (not an estimate/tactile).
+#   - THUMB  (111/112/113/114): retargeting (IK) + TACTILE force rendering.
+#
+# Index params mirror joint_teleop/conf/hand_config/sharpa_3dof_index.yaml; thumb
+# params mirror ditto_thumb_tactile.yaml. Tune each finger in its own config first.
+#
+# NOTE: index joint_map `scale` may need a sign flip per joint on hardware — the
+# direct map uses URDF-convention angles, so verify each index joint drives the
+# Sharpa joint the right way (and that rendered force resists into contact).
+
+control_frequency: 200
+verbose: true
+show_current_breakdown: false
+
+leader:
+  mode: current
+  motor_ids: [121, 122, 123, 111, 112, 113, 114]
+  general_settings:
+    current_limit: 1400
+    current_command: 0
+  joint_settings:
+
+  # < ----- INDEX (joint mode) ----- >
+
+  # ---- INDEX (joint mode) — from sharpa_3dof_index.yaml -------------------
+  - motor_id: 121            # index_joint_0 -> Index MCP AA
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 70.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive: 350
+      force_rendering_threshold_negative: 350
+      force_rendering_max_current: 50
+  - motor_id: 122            # index_joint_1 -> Index MCP FE
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 60.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.12 # 0.15
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive: 135
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 110
+  - motor_id: 123            # index_joint_2 -> Index PIP
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 60.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 40
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.18 # 0.22
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive: 125
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 90
+  
+  # < ----- THUMB (tactile) ----- >
+
+  # Thumb joint 0 (proximal / CMC-like): heaviest, gentlest
+  - motor_id: 111
+    plot_joint: false   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 20.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.1  
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 100
+
+  # Thumb joint 1
+  - motor_id: 112
+    plot_joint: false   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 25.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1  
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+
+  # Thumb joint 2
+  - motor_id: 113
+    plot_joint: false   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 25.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1  
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+
+  # Thumb joint 3 (distal / IP-like): lightest deadband
+  - motor_id: 114
+    plot_joint: false   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 20.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1  
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 70
+
+follower:
+  mode: none
+
+# Per-finger control mode (the single source of truth for what each finger does):
+#   position: retarget (IK) | joint (direct leader→Sharpa joint map)
+#   force:    measured (Sharpa joint current) | estimate | tactile | mix
+# This config: index is full joint_teleop-style (direct joint map + measured
+# joint-current force); thumb is IK + tactile. A joint_map is required for any
+# finger using position=joint and/or force=measured.
+control:
+  fingers:
+    index: {position: joint,    force: measured}
+    thumb: {position: retarget, force: tactile}
+  joint_map:
+    index:
+    # scale sets BOTH directions for the joint (one knob): position
+    # (θ_sharpa = scale·θ_ditto) and rendered force (τ_ditto = scale·τ_sharpa).
+    # -1 here: the direct map uses URDF-convention leader angles (index joints
+    # negated by DITTO_LEADER_HARDWARE_JOINT_SIGNS) vs joint_teleop's raw angle.
+    - {ditto_joint: index_joint_0, sharpa_joint: right_index_MCP_AA, scale: -1.0}
+    - {ditto_joint: index_joint_1, sharpa_joint: right_index_MCP_FE, scale: -1.0}
+    - {ditto_joint: index_joint_2, sharpa_joint: right_index_PIP, scale: -1.0}
+
+# Per-motor force-rendering tuning: joint torque (Nm) → synthetic current (mA).
+# The torque is the measured Sharpa joint torque (index) or the tactile Jᵀ
+# estimate (thumb), per control.fingers above.
+force_render:
+  joints:
+  # < ----- INDEX (joint mode) ----- >
+  - motor_id: 121
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 122
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 123
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+
+  # < ----- THUMB (tactile) ----- >
+  - motor_id: 111
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 112
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 113
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 114
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2

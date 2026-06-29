@@ -6,8 +6,9 @@ viewer and the headless runner need:
 
 - ``poll_leader()``        read Ditto leader hardware → leader ``q``
 - ``retarget()``           Ditto ``q`` → Sharpa ``q`` (and stream to follower)
-- ``estimate_force_feedback()``  read follower torques → estimated pad forces and
-  would-be leader joint torques (observe-only)
+- ``estimate_force_feedback()``  read the contact force from ``force_source``
+  (model-based estimate or tactile) → pad forces and would-be leader joint
+  torques (observe-only)
 
 It carries no Viser dependency and holds session *references* only; lifecycle
 (start/stop) stays with the caller, which has the Hydra config and console UX.
@@ -25,6 +26,7 @@ from retargeting.ditto_ik import FingerName
 from retargeting.ik_utils import IkSolveParams
 from retargeting.paths import DITTO_LEADER_JOINT_NAMES
 from retargeting.retargeter import DittoToSharpaRetargeter, RetargetResult
+from teleop.force_sources import PadForceSource, TorqueEstimateForceSource
 
 if TYPE_CHECKING:
     from hardware_interfaces.ditto_leader.session import LeaderHardwareSession
@@ -55,13 +57,20 @@ class RetargetTeleopEngine:
         hardware: "LeaderHardwareSession | None" = None,
         sharpa_follower: "SharpaFollowerSession | None" = None,
         retargeter: DittoToSharpaRetargeter | None = None,
+        fingers: tuple[FingerName, ...] = ("index", "thumb"),
     ) -> None:
         self.retargeter = retargeter if retargeter is not None else DittoToSharpaRetargeter()
         self.hardware = hardware
         self.sharpa_follower = sharpa_follower
         self.sharpa_send_enabled = sharpa_follower is not None
+        self.fingers = tuple(fingers)
         self.ditto_q = pin.neutral(self.ditto_ik.model)
         self.sharpa_q = pin.neutral(self.sharpa_ik.model)
+        # Pluggable contact-force source (swap for tactile / mix). Defaults to the
+        # model-based Jᵀ estimate so existing callers are unaffected.
+        self.force_source: PadForceSource = TorqueEstimateForceSource(
+            self.sharpa_ik, self.fingers
+        )
 
     @property
     def ditto_ik(self):
@@ -109,7 +118,9 @@ class RetargetTeleopEngine:
         if ditto_q is not None:
             self.ditto_q = np.asarray(ditto_q, dtype=float)
         seed = self.sharpa_q if sharpa_q_seed is None else np.asarray(sharpa_q_seed, dtype=float)
-        result = self.retargeter.retarget(self.ditto_q, seed, solve_params=solve_params)
+        result = self.retargeter.retarget(
+            self.ditto_q, seed, solve_params=solve_params, fingers=self.fingers
+        )
         self.sharpa_q = result.sharpa_q
         if (
             send
@@ -134,16 +145,18 @@ class RetargetTeleopEngine:
         seed = self.sharpa_q if sharpa_q_seed is None else np.asarray(sharpa_q_seed, dtype=float)
         leader_q = self.ditto_q if ditto_q is None else np.asarray(ditto_q, dtype=float)
 
-        inputs = self.sharpa_follower.read_wrench_inputs(seed)
-        if inputs is None:
+        read = self.force_source.read(self.sharpa_follower, seed)
+        if read is None:
             return None
-        q_meas, finger_torques = inputs
+        q_meas, force_by_finger = read
 
         sharpa_forces: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         sharpa_force_vec: dict[str, np.ndarray] = {}
         magnitudes: dict[str, float] = {}
-        for finger in _FINGERS:
-            force = self.sharpa_ik.estimate_pad_force(q_meas, finger, finger_torques[finger])
+        for finger in self.fingers:
+            force = force_by_finger.get(finger)
+            if force is None:
+                continue
             origin = np.asarray(
                 self.sharpa_ik.pad_pose_in_base(q_meas, finger).translation, dtype=float
             )
@@ -154,7 +167,9 @@ class RetargetTeleopEngine:
         leader_forces: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         leader_torques: dict[str, float] = {}
         torque_arrows: list[tuple[np.ndarray, np.ndarray, float]] = []
-        for finger in _FINGERS:
+        for finger in self.fingers:
+            if finger not in sharpa_force_vec:
+                continue
             fb = self.retargeter.leader_force_and_torque(
                 finger, sharpa_force_vec[finger], q_meas, leader_q
             )

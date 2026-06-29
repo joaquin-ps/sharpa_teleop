@@ -1,0 +1,114 @@
+# @package hand_config
+#
+# Ditto index leader in CURRENT mode for retargeting force rendering.
+# Motors 121/122/123 == DITTO index_joint_0/1/2 (MCP AA, MCP flex, PIP).
+#
+# Force-rendering params mirror joint_teleop/conf/hand_config/sharpa_3dof_index.yaml,
+# but SAFE defaults to start: all gains = 0 and all low-pass filters = 1 (off).
+# Bump force_rendering_gain (and torque_to_mA / damping) gradually.
+#
+# Unlike joint_teleop, the "follower" current here is synthesized from the
+# estimated Ditto joint torque (Jᵀ·F from the Sharpa contact force), not from a
+# directly-mapped Sharpa joint. The Sharpa hand is driven separately via the
+# retargeting SharpaFollowerSession.
+
+control_frequency: 200
+verbose: true
+show_current_breakdown: false
+
+leader:
+  mode: current
+  motor_ids: [121, 122, 123]
+  general_settings:
+    current_limit: 1400
+    current_command: 0
+  joint_settings:
+
+  # Index MCP AA
+  - motor_id: 121
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      # Force rendering damping 
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 70.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+
+      # Force rendering 
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 350
+      force_rendering_threshold_negative: 350
+      force_rendering_max_current: 50
+
+  # Index MCP flex
+  - motor_id: 122
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      # Force rendering damping 
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 70.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      
+      # Force rendering
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.15
+      force_rendering_threshold_positive: 135
+      force_rendering_threshold_negative: 300
+      force_rendering_max_current: 110
+    
+  # Index PIP
+  - motor_id: 123
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      # Force rendering damping 
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 15.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      
+      # Force rendering
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 125
+      force_rendering_threshold_negative: 145
+      force_rendering_max_current: 80
+
+follower:
+  mode: none
+
+# Per-finger control mode (the single source of truth for what each finger does):
+#   position: retarget (IK) | joint (direct leader→Sharpa joint map)
+#   force:    measured (Sharpa joint current) | estimate | tactile | mix
+# This config: index driven by IK, force from the model-based Jᵀ estimate (see
+# ditto_index_tactile for the tactile variant).
+control:
+  fingers:
+    index: {position: retarget, force: estimate}
+
+# Per-motor force-rendering tuning: joint torque (Nm) → synthetic current (mA).
+# torque_filter_alpha is an EMA on the torque (1.0 = no filter).
+force_render:
+  joints:
+  - motor_id: 121
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.1
+  - motor_id: 122
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.1
+  - motor_id: 123
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.1

@@ -8,11 +8,17 @@ Sharpa Wave hand. Either hardware interface can be disabled independently.
 Hardware is OFF by default (viewer only); opt in per interface with --ditto
 and/or --sharpa.
 
+The Sharpa pad-force arrows + would-be leader joint-torque arrows are driven by
+the force source seeded from the config (hand_config.control.fingers; tactile/mix
+imply --sharpa). You can switch the source live from the "Force source" dropdown
+in the viewer.
+
 Usage (from sharpa_teleop repo root):
     python retargeting_teleop/viz/view_teleop.py                 # viewer only, no hardware
     python retargeting_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
     python retargeting_teleop/viz/view_teleop.py --ditto         # ditto leader only
     python retargeting_teleop/viz/view_teleop.py --sharpa        # sharpa hand only
+    python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_hand_tactile
     python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
     python retargeting_teleop/viz/view_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
 
@@ -37,6 +43,10 @@ from hydra import compose, initialize_config_dir  # noqa: E402
 from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
 from retargeting.paths import DITTO_LEADER_ONLY_HAND_CONFIG  # noqa: E402
 from hardware_interfaces.ditto_leader import LeaderHardwareSession  # noqa: E402
+from teleop.force_render import (  # noqa: E402
+    config_needs_tactile,
+    viewer_initial_source,
+)
 from viz.view_assets import run_viewer  # noqa: E402
 
 
@@ -53,7 +63,8 @@ def _strip_view_flags() -> ViewFlags:
 
     Hardware is opt-in: ``--ditto`` enables the Ditto leader, ``--sharpa``
     enables the Sharpa follower. ``--leader-only`` / ``--sharpa-only`` only
-    control which URDFs are shown.
+    control which URDFs are shown. The control mode is config-only
+    (``hand_config.control.fingers``); tactile/mix auto-enable ``--sharpa``.
     """
     flags = ViewFlags()
     remaining = [sys.argv[0]]
@@ -95,6 +106,16 @@ def main() -> None:
     with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
         cfg = compose(config_name="config", overrides=overrides)
 
+    # Force source + tactile options are config-only. The viewer uses one global
+    # source (with a live dropdown); seed it from the config's per-finger modes.
+    force_mode = viewer_initial_source(cfg)
+    fr_cfg = cfg.hand_config.get("force_render") or {}
+    tactile_calibrate = bool(fr_cfg.get("calibrate", False))
+    tactile_debug = bool(fr_cfg.get("debug", False))
+    # tactile/mix need the real Sharpa hand → auto-enable when both hands shown.
+    if config_needs_tactile(cfg) and flags.show_leader and flags.show_sharpa:
+        flags.sharpa_hardware = True
+
     hardware = None
     if flags.ditto_hardware:
         hardware = LeaderHardwareSession(cfg)
@@ -120,6 +141,9 @@ def main() -> None:
             show_sharpa=flags.show_sharpa,
             hardware=hardware,
             sharpa_follower=sharpa_follower,
+            force_mode=force_mode,
+            tactile_calibrate=tactile_calibrate,
+            tactile_debug=tactile_debug,
         )
     except KeyboardInterrupt:
         print("\nStopped.")

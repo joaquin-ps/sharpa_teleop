@@ -104,21 +104,30 @@ Override the U2D2 port: `u2d2.usb_port=/dev/ttyUSB0`
 python retargeting_teleop/viz/view_assets.py
 ```
 
-**Physical Ditto leader + viewer**:
+**Physical Ditto leader + Sharpa follower + viewer**:
 
 ```bash
-python retargeting_teleop/viz/view_teleop.py
-python retargeting_teleop/viz/view_teleop.py u2d2.fake_u2d2=true   # no USB
+python retargeting_teleop/viz/view_teleop.py                   # viewer only
+python retargeting_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
+python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true   # no USB
+```
+
+**Force rendering (haptics)** back to the Ditto leader — force source is
+`estimate` (Jᵀ model), `tactile`, or the measured Sharpa joint current, and
+position/force can be set per finger (see the mixed configs):
+
+```bash
+python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile --sharpa
 ```
 
 Tune defaults in `retargeting_teleop/retargeting/retargeter.py` (`index_cartesian_scale`, `thumb_*_weight`, etc.).
 
-See **[retargeting_teleop/RETARGETING_TELEOP.md](retargeting_teleop/RETARGETING_TELEOP.md)** for viewer usage and code API.
+See **[retargeting_teleop/RETARGETING_TELEOP.md](retargeting_teleop/RETARGETING_TELEOP.md)** for all modes/configs and the code API, and **[retargeting_teleop/docs/COMMANDS.md](retargeting_teleop/docs/COMMANDS.md)** for copy-paste demo commands.
 
 ## 📚 More documentation
 
 - **[Joint teleop](joint_teleop/JOINT_TELEOP.md)** — run commands, configs, force-feedback tuning
-- **[Retargeting teleop](retargeting_teleop/RETARGETING_TELEOP.md)** — viewer and IK API
+- **[Retargeting teleop](retargeting_teleop/RETARGETING_TELEOP.md)** — viewer, force-rendering modes/configs, IK API
 - **`joint_teleop/conf/hand_config/`** — per-setup Hydra configs
 - **`sharpa_controller/tools/`** — read Sharpa joints, torques, tactile
 
@@ -133,10 +142,12 @@ sharpa_teleop/                      # this repo
 │   ├── sharpa_teleop_controller.py
 │   ├── live_plot.py
 │   └── JOINT_TELEOP.md
-├── retargeting_teleop/             # pad retargeting + dev viewer
+├── retargeting_teleop/             # pad retargeting + force rendering + dev viewer
 │   ├── conf/
+│   ├── docs/                       # COMMANDS, FORCE_RENDERING, TELEOP_EQS
 │   ├── hardware_interfaces/
 │   ├── retargeting/
+│   ├── teleop/                     # engine + force render controller + force sources
 │   ├── viz/
 │   └── RETARGETING_TELEOP.md
 └── environment.yml

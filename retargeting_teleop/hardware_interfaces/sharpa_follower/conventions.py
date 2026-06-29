@@ -45,6 +45,41 @@ SHARPA_FOLLOWER_SDK_JOINTS: tuple[str, ...] = tuple(SHARPA_URDF_TO_SDK_JOINT.val
 # (This is separate from SHARPA_URDF_TO_SDK_SIGN, which fixes joint-axis direction.)
 SHARPA_TORQUE_FEEDBACK_SIGN: float = -1.0
 
+# --- Fingertip tactile sensors -------------------------------------------------
+# Tactile channel per finger. Right hand uses channels 0..4 (pinky, ring, middle,
+# index, thumb); left hand uses 5..9. The retargeting URDF is the right hand.
+SHARPA_TACTILE_CHANNEL_RIGHT: dict[str, int] = {"index": 3, "thumb": 4}
+
+# Sign relating the tactile F6 force to the same "points against the push"
+# convention as the torque estimate. With the sensor->link rotation corrected, the
+# raw F6 already points the right way, so this is +1. Flip to -1 if tactile-driven
+# feedback comes out opposite again.
+SHARPA_TACTILE_FORCE_SIGN: float = 1.0
+
+# URDF link each fingertip tactile sensor is physically mounted on. The F6 force
+# triplet is expressed (up to the residual rotation below) in THIS link's frame,
+# NOT the Ditto-matched ``*_retargeting_pad`` frame. We FK this link to rotate the
+# force into Sharpa base axes (matching the torque-estimate source output).
+SHARPA_TACTILE_SENSOR_LINK_RIGHT: dict[str, str] = {
+    "index": "right_index_fingertip",
+    "thumb": "right_thumb_fingertip",
+}
+
+# Residual fixed rotation (rpy, rad) from the tactile sensor hardware frame to its
+# mounting-link frame (``SHARPA_TACTILE_SENSOR_LINK_RIGHT``). The F6 axis order
+# does not match the fingertip-link axes: empirically a sensor press cycles as
+# (x,y,z) -> (y,z,x) in base, which this rotation cancels.
+#   R_link_sensor = [[0,1,0],[0,0,1],[1,0,0]]  (sensor x->link z, y->x, z->y)
+# Same hardware/link convention on every finger, so index and thumb share it. To
+# re-calibrate: press straight onto a pad and compare the tactile base-force arrow
+# against the torque-estimate arrow (already correct in base axes); set
+# ``force_render.debug: true`` in the hand_config to print raw F6 vs base force.
+_TACTILE_SENSOR_TO_LINK_RPY = (-1.5707963267948966, 0.0, 1.5707963267948966)
+SHARPA_TACTILE_SENSOR_TO_LINK_RPY: dict[str, tuple[float, float, float]] = {
+    "index": _TACTILE_SENSOR_TO_LINK_RPY,
+    "thumb": _TACTILE_SENSOR_TO_LINK_RPY,
+}
+
 
 def urdf_q_to_sdk_targets(
     sharpa_q: np.ndarray,

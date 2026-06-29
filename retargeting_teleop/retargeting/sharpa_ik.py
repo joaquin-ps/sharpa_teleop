@@ -50,6 +50,10 @@ class SharpaFingerIK:
     def pad_pose_in_base(self, q: np.ndarray, finger: FingerName) -> pin.SE3:
         return frame_pose_in_base(self.model, self.data, q, _FINGER_TO_PAD[finger])
 
+    def link_pose_in_base(self, q: np.ndarray, link_name: str) -> pin.SE3:
+        """FK pose of an arbitrary URDF link/frame in the model base frame."""
+        return frame_pose_in_base(self.model, self.data, q, link_name)
+
     def finger_joint_names(self, finger: FingerName) -> tuple[str, ...]:
         return _FINGER_TO_JOINTS[finger]
 
