@@ -15,6 +15,7 @@ leader:
     current_command: 0
   joint_settings:
     - motor_id: 122
+      plot_joint: true   # plotting tools (live_plot.py) skip joints set false
       joint_settings:
         motor_model: XC330
         zero_position: 2048
@@ -36,6 +37,7 @@ leader:
         force_rendering_threshold_negative: 175
         force_rendering_max_current: 150
     - motor_id: 123
+      plot_joint: true   # plotting tools (live_plot.py) skip joints set false
       joint_settings:
         motor_model: XC330
         zero_position: 2048

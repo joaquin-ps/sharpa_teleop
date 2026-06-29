@@ -89,6 +89,9 @@ class SharpaLivePlotter:
         mapping = config.hand_config.sharpa_mapping.pairs
         self.follower_labels = [str(p.sharpa_joint) for p in mapping]
         self.num_joints = len(self.leader_chain)
+        # Rows to draw: chain indices whose joint has plot_joint != false.
+        self.plot_indices = self._plot_indices()
+        self.num_rows = len(self.plot_indices)
 
         leader_config = config.hand_config.leader
         self.thresholds_positive = []
@@ -138,18 +141,37 @@ class SharpaLivePlotter:
 
         self.setup_plots()
 
+    def _plot_indices(self) -> list[int]:
+        """Chain indices to draw: leader joints with plot_joint != false (default true)."""
+        flags: dict[int, bool] = {}
+        leader_cfg = self.config.hand_config.leader
+        if leader_cfg.get("joint_settings"):
+            for jc in leader_cfg.joint_settings:
+                mid = jc.get("motor_id")
+                if mid is not None:
+                    flags[mid] = bool(jc.get("plot_joint", True))
+        idxs = [i for i, m in enumerate(self.leader_chain) if flags.get(m, True)]
+        if not idxs:  # nothing flagged → plot all rather than draw an empty figure
+            print("  [plot] no joints have plot_joint=true; plotting all")
+            return list(range(self.num_joints))
+        skipped = [m for i, m in enumerate(self.leader_chain) if i not in idxs]
+        if skipped:
+            print(f"  [plot] skipping joints (plot_joint=false): {skipped}")
+        return idxs
+
     def setup_plots(self) -> None:
         num_cols = self.num_plot_types
         self.fig, axes = plt.subplots(
-            self.num_joints,
+            self.num_rows,
             num_cols,
-            figsize=(5 * num_cols, 4 * self.num_joints),
+            figsize=(5 * num_cols, 4 * self.num_rows),
             squeeze=False,
         )
         self.col_map = {ptype: col for col, ptype in enumerate(self.plot_types)}
         self.axes = axes
 
-        for joint_idx in range(self.num_joints):
+        # row = plot row, joint_idx = index into the full leader chain / data deques.
+        for row, joint_idx in enumerate(self.plot_indices):
             leader_id = self.leader_chain[joint_idx]
             follower_label = (
                 self.follower_labels[joint_idx]
@@ -159,7 +181,7 @@ class SharpaLivePlotter:
 
             if "current" in self.col_map:
                 col = self.col_map["current"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 ax.set_title(
                     f"Joint {joint_idx} - Synth current (mA)\n"
                     f"raw vs filtered input to force rendering"
@@ -174,7 +196,7 @@ class SharpaLivePlotter:
 
             if "velocity" in self.col_map:
                 col = self.col_map["velocity"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 ax.set_title(f"Joint {joint_idx} - Velocity (rad/s)")
                 ax.set_ylabel("Velocity (rad/s)")
                 ax.grid(True, alpha=0.3)
@@ -183,12 +205,12 @@ class SharpaLivePlotter:
 
             if "position" in self.col_map:
                 col = self.col_map["position"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 ax.set_title(
                     f"Joint {joint_idx} - Position (rad)\n"
                     f"Leader vs {follower_label}"
                 )
-                if joint_idx == self.num_joints - 1:
+                if row == self.num_rows - 1:
                     ax.set_xlabel("Time (s)")
                 ax.set_ylabel("Position (rad)")
                 ax.grid(True, alpha=0.3)
@@ -196,7 +218,7 @@ class SharpaLivePlotter:
 
             if "torque" in self.col_map:
                 col = self.col_map["torque"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 ax.set_title(
                     f"Joint {joint_idx} - Sharpa torque (Nm)\n"
                     f"raw vs filtered ({follower_label})"
@@ -220,10 +242,10 @@ class SharpaLivePlotter:
         self.follower_torque_lines = []
         self.follower_torque_lines_filtered = []
 
-        for joint_idx in range(self.num_joints):
+        for row, joint_idx in enumerate(self.plot_indices):
             if "current" in self.col_map:
                 col = self.col_map["current"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 line_l, = ax.plot([], [], "b-", label="Leader meas", linewidth=1.5)
                 line_c, = ax.plot([], [], "c--", label="Leader cmd", linewidth=1.2)
                 line_fr, = ax.plot([], [], "g-", label="Synth raw", linewidth=1.2, alpha=0.7)
@@ -243,7 +265,7 @@ class SharpaLivePlotter:
 
             if "velocity" in self.col_map:
                 col = self.col_map["velocity"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 line_l, = ax.plot([], [], "b-", label="Leader", linewidth=1.5)
                 line_f, = ax.plot([], [], "g-", label="Sharpa", linewidth=1.5)
                 self.leader_velocity_lines.append(line_l)
@@ -251,7 +273,7 @@ class SharpaLivePlotter:
 
             if "position" in self.col_map:
                 col = self.col_map["position"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 line_l, = ax.plot([], [], "b-", label="Leader", linewidth=1.5)
                 line_f, = ax.plot([], [], "g-", label="Sharpa", linewidth=1.5)
                 self.leader_position_lines.append(line_l)
@@ -259,7 +281,7 @@ class SharpaLivePlotter:
 
             if "torque" in self.col_map:
                 col = self.col_map["torque"]
-                ax = self.axes[joint_idx, col]
+                ax = self.axes[row, col]
                 line_r, = ax.plot([], [], "m-", label="Torque raw", linewidth=1.2, alpha=0.7)
                 line_f, = ax.plot(
                     [], [], color="orange", linestyle="--",
@@ -381,73 +403,74 @@ class SharpaLivePlotter:
         should_scale = self.scale_counter % self.scale_interval == 0
         self.scale_counter += 1
 
-        for joint_idx in range(self.num_joints):
+        # row = plot row, joint_idx = index into the full leader chain / data deques.
+        for row, joint_idx in enumerate(self.plot_indices):
             time_plot, arrays = self._trim_series(joint_idx, time_array, plot_length)
 
             if "current" in self.col_map:
-                self.leader_current_lines[joint_idx].set_data(
+                self.leader_current_lines[row].set_data(
                     time_plot, arrays["leader_current"]
                 )
-                self.leader_command_lines[joint_idx].set_data(
+                self.leader_command_lines[row].set_data(
                     time_plot, arrays["leader_command"]
                 )
-                self.follower_current_lines_raw[joint_idx].set_data(
+                self.follower_current_lines_raw[row].set_data(
                     time_plot, arrays["follower_current_raw"]
                 )
-                self.follower_current_lines[joint_idx].set_data(
+                self.follower_current_lines[row].set_data(
                     time_plot, arrays["follower_current"]
                 )
-                self.leader_force_rendering_damping_lines[joint_idx].set_data(
+                self.leader_force_rendering_damping_lines[row].set_data(
                     time_plot, arrays["leader_force_rendering_damping"]
                 )
                 all_lines.extend([
-                    self.leader_current_lines[joint_idx],
-                    self.leader_command_lines[joint_idx],
-                    self.follower_current_lines_raw[joint_idx],
-                    self.follower_current_lines[joint_idx],
-                    self.leader_force_rendering_damping_lines[joint_idx],
+                    self.leader_current_lines[row],
+                    self.leader_command_lines[row],
+                    self.follower_current_lines_raw[row],
+                    self.follower_current_lines[row],
+                    self.leader_force_rendering_damping_lines[row],
                 ])
 
             if "velocity" in self.col_map:
-                self.leader_velocity_lines[joint_idx].set_data(
+                self.leader_velocity_lines[row].set_data(
                     time_plot, arrays["leader_velocity"]
                 )
-                self.follower_velocity_lines[joint_idx].set_data(
+                self.follower_velocity_lines[row].set_data(
                     time_plot, arrays["follower_velocity"]
                 )
                 all_lines.extend([
-                    self.leader_velocity_lines[joint_idx],
-                    self.follower_velocity_lines[joint_idx],
+                    self.leader_velocity_lines[row],
+                    self.follower_velocity_lines[row],
                 ])
 
             if "position" in self.col_map:
-                self.leader_position_lines[joint_idx].set_data(
+                self.leader_position_lines[row].set_data(
                     time_plot, arrays["leader_position"]
                 )
-                self.follower_position_lines[joint_idx].set_data(
+                self.follower_position_lines[row].set_data(
                     time_plot, arrays["follower_position"]
                 )
                 all_lines.extend([
-                    self.leader_position_lines[joint_idx],
-                    self.follower_position_lines[joint_idx],
+                    self.leader_position_lines[row],
+                    self.follower_position_lines[row],
                 ])
 
             if "torque" in self.col_map:
-                self.follower_torque_lines[joint_idx].set_data(
+                self.follower_torque_lines[row].set_data(
                     time_plot, arrays["follower_torque"]
                 )
-                self.follower_torque_lines_filtered[joint_idx].set_data(
+                self.follower_torque_lines_filtered[row].set_data(
                     time_plot, arrays["follower_torque_filtered"]
                 )
                 all_lines.extend([
-                    self.follower_torque_lines[joint_idx],
-                    self.follower_torque_lines_filtered[joint_idx],
+                    self.follower_torque_lines[row],
+                    self.follower_torque_lines_filtered[row],
                 ])
 
             if should_scale and len(time_plot) > 0:
                 xlim = (max(0, time_plot[-1] - 10), time_plot[-1] + 1)
                 for ptype in self.plot_types:
-                    self.axes[joint_idx, self.col_map[ptype]].set_xlim(*xlim)
+                    self.axes[row, self.col_map[ptype]].set_xlim(*xlim)
 
         return all_lines
 
