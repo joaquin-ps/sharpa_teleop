@@ -204,6 +204,10 @@ class ForceRenderPlotter:
             ax_c.grid(True, alpha=0.3)
             ax_c.axhline(y=self.thresholds_positive[j], color="r", linestyle="--", alpha=0.6)
             ax_c.axhline(y=-self.thresholds_negative[j], color="r", linestyle="--", alpha=0.6)
+            ax_c.set_ylim(
+                -(self.thresholds_negative[j] + 100),
+                self.thresholds_positive[j] + 100,
+            )
             sr, = ax_c.plot([], [], "g-", label="follower raw", linewidth=1.0, alpha=0.6)
             sf, = ax_c.plot([], [], color="darkgreen", linestyle="--", label="follower filt", linewidth=1.3)
             cmd, = ax_c.plot([], [], "c-", label="leader cmd (rendered)", linewidth=1.6)
@@ -297,8 +301,15 @@ class ForceRenderPlotter:
             xlim = (max(0.0, float(tt[-1]) - self.plot_window_seconds), float(tt[-1]) + 1.0)
             for col in range(3):
                 self.axes[row, col].set_xlim(*xlim)
-                self.axes[row, col].relim()
-                self.axes[row, col].autoscale_view(scalex=False, scaley=True)
+                if col == 1:
+                    # Current column: fixed y-range = threshold ± 100 mA (deadband visible).
+                    self.axes[row, col].set_ylim(
+                        -(self.thresholds_negative[j] + 100),
+                        self.thresholds_positive[j] + 100,
+                    )
+                else:
+                    self.axes[row, col].relim()
+                    self.axes[row, col].autoscale_view(scalex=False, scaley=True)
         return lines
 
     def run(self) -> None:

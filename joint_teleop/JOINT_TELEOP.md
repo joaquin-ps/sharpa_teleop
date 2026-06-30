@@ -15,6 +15,9 @@ dynamixel-port --latency-timer 1   # before real hardware
 # 3-DoF index (motors 121, 122, 123)
 python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index
 
+# 3-DoF middle (motors 131, 132, 133) — same gains/ROM as index
+python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_middle
+
 # Override U2D2 port or use fake Dynamixel (no USB)
 python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index u2d2.usb_port=/dev/ttyUSB0
 python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index u2d2.fake_u2d2=true
@@ -47,6 +50,7 @@ Hydra configs live in `conf/hand_config/`. Select with `hand_config=<name>`:
 | `sharpa_1dof_index_mcp_aa` | 121 | Index MCP AA |
 | `sharpa_2dof_index_mcp_pip` | 122, 123 | MCP flex + PIP |
 | `sharpa_3dof_index` | 121, 122, 123 | MCP AA + MCP flex + PIP |
+| `sharpa_3dof_middle` | 131, 132, 133 | Middle MCP AA + MCP flex + PIP |
 
 Default config (`conf/config.yaml`) starts at `sharpa_1dof_index_pip` for staged bring-up.
 

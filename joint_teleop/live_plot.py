@@ -192,7 +192,7 @@ class SharpaLivePlotter:
                 threshold_neg = self.thresholds_negative[joint_idx]
                 ax.axhline(y=threshold_pos, color="r", linestyle="--", alpha=0.7)
                 ax.axhline(y=-threshold_neg, color="r", linestyle="--", alpha=0.7)
-                ax.set_ylim(-300, 300)
+                ax.set_ylim(-(threshold_neg + 100), threshold_pos + 100)
 
             if "velocity" in self.col_map:
                 col = self.col_map["velocity"]

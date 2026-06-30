@@ -18,7 +18,7 @@ from hand_interfaces.src.current_control import (  # noqa: E402
 )
 from hand_interfaces.src.hand_interface import create_hand_interface  # noqa: E402
 from hand_interfaces.src.motor_data import MotorData  # noqa: E402
-from sharpa_hand import JOINT_NAME_TO_INDEX, SharpaHand  # noqa: E402
+from sharpa_hand import ANGLE_RANGES_DEG, JOINT_NAME_TO_INDEX, SharpaHand  # noqa: E402
 from utils.utils import precise_sleep  # noqa: E402
 
 
@@ -170,6 +170,23 @@ class SharpaDittoTeleop:
         baudrate = int(u2d2_config.get("baudrate", 4000000))
         return port, baudrate
 
+    def _apply_angle_overrides(self) -> None:
+        """Widen SDK position-clamp limits from config (deg), keyed by joint name."""
+        overrides = self.config.sharpa.get("angle_overrides_deg")
+        if not overrides:
+            overrides = self.config.hand_config.get("sharpa_angle_overrides_deg")
+        if not overrides:
+            return
+        for name, rng in overrides.items():
+            if name not in JOINT_NAME_TO_INDEX:
+                raise ValueError(
+                    f"Unknown Sharpa joint in angle_overrides_deg: {name!r}"
+                )
+            lo, hi = float(rng[0]), float(rng[1])
+            ANGLE_RANGES_DEG[JOINT_NAME_TO_INDEX[name]] = (lo, hi)
+            if self.verbose:
+                print(f"  Sharpa ROM override {name}: [{lo:.0f}, {hi:.0f}] deg")
+
     def connect(self) -> None:
         port, baudrate = self._get_u2d2_port_baud()
         use_fake = bool(self.config.u2d2.get("fake_u2d2", False))
@@ -187,6 +204,7 @@ class SharpaDittoTeleop:
         )
         self.leader_hand.connect()
 
+        self._apply_angle_overrides()
         self.sharpa_hand = SharpaHand.from_config(
             self.config.sharpa, verbose=self.verbose
         )
