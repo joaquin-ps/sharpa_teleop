@@ -98,7 +98,8 @@ class RetargetTeleopEngine:
         angles = self.hardware.poll_joint_angles()
         if angles is None:
             return None
-        self.ditto_q = self.ditto_q_from_actuated(angles)
+        joint_names = self.hardware.leader_joint_names
+        self.ditto_q = self.ditto_q_from_actuated(angles, joint_names)
         return self.ditto_q
 
     def retarget(

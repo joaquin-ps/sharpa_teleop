@@ -32,11 +32,13 @@ from hardware_interfaces.sharpa_follower.conventions import (  # noqa: E402
 )
 from retargeting.paths import (  # noqa: E402
     SHARPA_INDEX_JOINT_NAMES,
+    SHARPA_MIDDLE_JOINT_NAMES,
     SHARPA_THUMB_JOINT_NAMES,
 )
 
 _FINGER_URDF_JOINTS: dict[str, tuple[str, ...]] = {
     "index": SHARPA_INDEX_JOINT_NAMES,
+    "middle": SHARPA_MIDDLE_JOINT_NAMES,
     "thumb": SHARPA_THUMB_JOINT_NAMES,
 }
 
@@ -61,7 +63,7 @@ class SharpaFollowerSession:
         return self._started
 
     def start(self, q_index_of: Callable[[str], int]) -> None:
-        """Connect, enable index/thumb joints, and start position streaming.
+        """Connect, enable driven joints, and start position streaming.
 
         ``q_index_of`` maps a URDF joint name to its index in the retargeted
         ``sharpa_q`` (e.g. ``SharpaFingerIK.joint_q_index``).

@@ -16,18 +16,21 @@ from .ik_utils import (
     scale_pad_translation_in_retarget,
 )
 from .paths import (
-    DITTO_FINGERTIP_LINKS,
     DITTO_LEADER_URDF,
     DITTO_RETARGET_BASE_LINK,
     SHARPA_RETARGET_BASE_LINK,
     SHARPA_RIGHT_URDF,
+    mirror_sharpa_middle_to_ring_pinky,
 )
 from .sharpa_ik import SharpaFingerIK
 
 _DITTO_PADS: dict[FingerName, str] = {
-    "index": DITTO_FINGERTIP_LINKS[0],
-    "thumb": DITTO_FINGERTIP_LINKS[1],
+    "index": "index_fingerpad",
+    "middle": "middle_fingerpad",
+    "thumb": "thumb_fingerpad",
 }
+
+_RETARGET_FINGER_ORDER: tuple[FingerName, ...] = ("index", "middle", "thumb")
 
 
 @dataclass(frozen=True)
@@ -48,17 +51,21 @@ class RetargetResult:
 
     sharpa_q: np.ndarray
     index_residual: float
+    middle_residual: float
     thumb_residual: float
     index_pad_in_retarget: pin.SE3
+    middle_pad_in_retarget: pin.SE3
     thumb_pad_in_retarget: pin.SE3
     index_target_in_sharpa_base: pin.SE3
+    middle_target_in_sharpa_base: pin.SE3
     thumb_target_in_sharpa_base: pin.SE3
     index_achieved_in_sharpa_base: pin.SE3
+    middle_achieved_in_sharpa_base: pin.SE3
     thumb_achieved_in_sharpa_base: pin.SE3
 
 
 class DittoToSharpaRetargeter:
-    """Map Ditto index/thumb pads to Sharpa pads in each hand's ``retarget_base`` frame."""
+    """Map Ditto finger pads to Sharpa pads in each hand's ``retarget_base`` frame."""
 
     def __init__(
         self,
@@ -67,19 +74,28 @@ class DittoToSharpaRetargeter:
         sharpa_urdf: Path = SHARPA_RIGHT_URDF,
         index_position_weight: float = 1.5,
         index_orientation_weight: float = 0.1,
+        middle_position_weight: float = 1.5,
+        middle_orientation_weight: float = 0.1,
         thumb_position_weight: float = 1.5,
         thumb_orientation_weight: float = 0.05,
         index_cartesian_scale: float = 1.3,
+        middle_cartesian_scale: float = 1.25,
         thumb_cartesian_scale: float = 1.3,
     ) -> None:
         self.ditto = DittoFingerIK(ditto_urdf)
         self.sharpa = SharpaFingerIK(sharpa_urdf)
         self.index_position_weight = index_position_weight
         self.index_orientation_weight = index_orientation_weight
+        self.middle_position_weight = middle_position_weight
+        self.middle_orientation_weight = middle_orientation_weight
         self.thumb_position_weight = thumb_position_weight
         self.thumb_orientation_weight = thumb_orientation_weight
         self.index_cartesian_scale = index_cartesian_scale
+        self.middle_cartesian_scale = middle_cartesian_scale
         self.thumb_cartesian_scale = thumb_cartesian_scale
+
+    def _ditto_has_finger(self, finger: FingerName) -> bool:
+        return self.ditto.model.existFrame(_DITTO_PADS[finger])
 
     def ditto_pad_relative_to_retarget(
         self,
@@ -112,11 +128,11 @@ class DittoToSharpaRetargeter:
         pad_in_retarget: pin.SE3,
         finger: FingerName,
     ) -> pin.SE3:
-        scale = (
-            self.index_cartesian_scale
-            if finger == "index"
-            else self.thumb_cartesian_scale
-        )
+        scale = {
+            "index": self.index_cartesian_scale,
+            "middle": self.middle_cartesian_scale,
+            "thumb": self.thumb_cartesian_scale,
+        }[finger]
         return scale_pad_translation_in_retarget(pad_in_retarget, scale)
 
     def leader_force_and_torque(
@@ -133,11 +149,11 @@ class DittoToSharpaRetargeter:
         per-finger cartesian scale (``F_leader = scale · F_sharpa``), rotated into
         the leader base frame, and projected onto leader joints via ``Jᵀ``.
         """
-        scale = (
-            self.index_cartesian_scale
-            if finger == "index"
-            else self.thumb_cartesian_scale
-        )
+        scale = {
+            "index": self.index_cartesian_scale,
+            "middle": self.middle_cartesian_scale,
+            "thumb": self.thumb_cartesian_scale,
+        }[finger]
         r_sharpa_rb = frame_pose_in_base(
             self.sharpa.model, self.sharpa.data, sharpa_q, SHARPA_RETARGET_BASE_LINK
         ).rotation
@@ -170,6 +186,8 @@ class DittoToSharpaRetargeter:
     def _finger_weights(self, finger: FingerName) -> tuple[float, float]:
         if finger == "index":
             return self.index_position_weight, self.index_orientation_weight
+        if finger == "middle":
+            return self.middle_position_weight, self.middle_orientation_weight
         return self.thumb_position_weight, self.thumb_orientation_weight
 
     def retarget(
@@ -191,7 +209,14 @@ class DittoToSharpaRetargeter:
         achieved: dict[FingerName, pin.SE3] = {}
         residual: dict[FingerName, float] = {}
 
-        for finger in ("index", "thumb"):
+        for finger in _RETARGET_FINGER_ORDER:
+            if not self._ditto_has_finger(finger):
+                target[finger] = self.sharpa.pad_pose_in_base(q, finger)
+                achieved[finger] = target[finger]
+                in_retarget[finger] = pin.SE3.Identity()
+                residual[finger] = 0.0
+                continue
+
             in_retarget[finger] = self.ditto_pad_relative_to_retarget(ditto_q, finger)
             if finger in fingers:
                 scaled = self._scaled_pad_in_retarget(in_retarget[finger], finger)
@@ -210,14 +235,20 @@ class DittoToSharpaRetargeter:
                 residual[finger] = 0.0
             achieved[finger] = self.sharpa.pad_pose_in_base(q, finger)
 
+        mirror_sharpa_middle_to_ring_pinky(q, self.sharpa.joint_q_index)
+
         return RetargetResult(
             sharpa_q=q,
             index_residual=residual["index"],
+            middle_residual=residual["middle"],
             thumb_residual=residual["thumb"],
             index_pad_in_retarget=in_retarget["index"],
+            middle_pad_in_retarget=in_retarget["middle"],
             thumb_pad_in_retarget=in_retarget["thumb"],
             index_target_in_sharpa_base=target["index"],
+            middle_target_in_sharpa_base=target["middle"],
             thumb_target_in_sharpa_base=target["thumb"],
             index_achieved_in_sharpa_base=achieved["index"],
+            middle_achieved_in_sharpa_base=achieved["middle"],
             thumb_achieved_in_sharpa_base=achieved["thumb"],
         )

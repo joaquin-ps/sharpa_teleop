@@ -17,19 +17,22 @@ from .ik_utils import (
 from .paths import (
     DITTO_FINGERTIP_LINKS,
     DITTO_INDEX_JOINT_NAMES,
+    DITTO_MIDDLE_JOINT_NAMES,
     DITTO_THUMB_JOINT_NAMES,
 )
 
-FingerName = Literal["index", "thumb"]
+FingerName = Literal["index", "thumb", "middle"]
 
 _FINGER_TO_PAD: dict[FingerName, str] = {
     "index": DITTO_FINGERTIP_LINKS[0],
     "thumb": DITTO_FINGERTIP_LINKS[1],
+    "middle": "middle_fingerpad",
 }
 
 _FINGER_TO_JOINTS: dict[FingerName, tuple[str, ...]] = {
     "index": DITTO_INDEX_JOINT_NAMES,
     "thumb": DITTO_THUMB_JOINT_NAMES,
+    "middle": DITTO_MIDDLE_JOINT_NAMES,
 }
 
 

@@ -1,0 +1,70 @@
+# @package hand_config
+#
+# Ditto 10-DoF leader only (3-finger): read encoders, no follower, no force feedback.
+# Motor order matches retargeting DITTO_3F_LEADER_JOINT_NAMES:
+#   index: 121, 122, 123  |  middle: 131, 132, 133  |  thumb: 111, 112, 113, 114
+
+control_frequency: 200
+
+leader:
+  mode: torque_off
+  # position = encoder only (Ditto→Sharpa teleop). Use sync_read_mode: all for force rendering.
+  sync_read_mode: pos_vel
+  motor_ids: [121, 122, 123, 131, 132, 133, 111, 112, 113, 114]
+  general_settings: {}
+  joint_settings:
+  - motor_id: 121
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 122
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 123
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 131
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: -20
+      max_angle_deg: 20
+      direction: 1
+  - motor_id: 132
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: -10
+      max_angle_deg: 80
+      direction: 1
+  - motor_id: 133
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: 0
+      max_angle_deg: 80
+      direction: 1
+  - motor_id: 111
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 112
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 113
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+  - motor_id: 114
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+
+follower:
+  mode: none

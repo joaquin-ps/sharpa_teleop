@@ -15,8 +15,10 @@ summary is printed at startup. Configs (``conf/hand_config/``):
     ditto_index_force_render   index: retarget + estimate
     ditto_thumb_force_render   thumb: retarget + estimate
     ditto_index_tactile        index: retarget + tactile
+    ditto_middle_tactile       middle: retarget + tactile
     ditto_thumb_tactile        thumb: retarget + tactile
     ditto_hand_tactile         index+thumb: retarget + tactile
+    ditto_3f_tactile           index+middle+thumb: retarget + tactile
     ditto_hand_mixed           index: joint + measured;  thumb: retarget + tactile
     ditto_hand_mixed_ik        index: retarget + measured; thumb: retarget + tactile
 
@@ -27,6 +29,8 @@ calibrate tactile on startup / print raw F6 vs base force.
 Examples:
     # run a config as-is (tactile config auto-enables Sharpa):
     python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile
+    python retargeting_teleop/run_force_render.py hand_config=ditto_3f_tactile
+    python retargeting_teleop/run_force_render.py hand_config=ditto_middle_tactile
     # explicitly add the Sharpa hand for an estimate config:
     python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render --sharpa
     # raise a per-joint gain at runtime:

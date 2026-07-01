@@ -20,6 +20,7 @@ Usage (from sharpa_teleop repo root):
     python retargeting_teleop/viz/view_teleop.py --sharpa        # sharpa hand only
     python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_hand_tactile
     python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
+    python retargeting_teleop/viz/view_teleop.py --ditto --3f       # 3-finger Ditto hardware + URDF
     python retargeting_teleop/viz/view_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
 
 From retargeting_teleop/ package dir:
@@ -41,7 +42,7 @@ for _path in (_PKG, _REPO):
 from hydra import compose, initialize_config_dir  # noqa: E402
 
 from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
-from retargeting.paths import DITTO_LEADER_ONLY_HAND_CONFIG  # noqa: E402
+from retargeting.paths import DITTO_LEADER_ONLY_HAND_CONFIG, DITTO_3F_LEADER_ONLY_HAND_CONFIG  # noqa: E402
 from hardware_interfaces.ditto_leader import LeaderHardwareSession  # noqa: E402
 from teleop.force_render import (  # noqa: E402
     config_needs_tactile,
@@ -54,6 +55,7 @@ from viz.view_assets import run_viewer  # noqa: E402
 class ViewFlags:
     show_leader: bool = True
     show_sharpa: bool = True
+    ditto_3f: bool = False
     ditto_hardware: bool = False
     sharpa_hardware: bool = False
 
@@ -77,6 +79,8 @@ def _strip_view_flags() -> ViewFlags:
             flags.ditto_hardware = True
         elif arg == "--sharpa":
             flags.sharpa_hardware = True
+        elif arg == "--3f":
+            flags.ditto_3f = True
         else:
             remaining.append(arg)
     sys.argv = remaining
@@ -90,18 +94,23 @@ def _strip_view_flags() -> ViewFlags:
     return flags
 
 
-def _build_overrides(cli_args: list[str]) -> list[str]:
+def _build_overrides(cli_args: list[str], *, ditto_3f: bool = False) -> list[str]:
     """Inject finger_aloha conf searchpath (motor_models, joint_configs)."""
     searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
     overrides = [searchpath]
     if not any(arg.startswith("hand_config=") for arg in cli_args):
-        overrides.append(f"hand_config={DITTO_LEADER_ONLY_HAND_CONFIG}")
+        default_cfg = (
+            DITTO_3F_LEADER_ONLY_HAND_CONFIG
+            if ditto_3f
+            else DITTO_LEADER_ONLY_HAND_CONFIG
+        )
+        overrides.append(f"hand_config={default_cfg}")
     return overrides + list(cli_args)
 
 
 def main() -> None:
     flags = _strip_view_flags()
-    overrides = _build_overrides(sys.argv[1:])
+    overrides = _build_overrides(sys.argv[1:], ditto_3f=flags.ditto_3f)
 
     with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
         cfg = compose(config_name="config", overrides=overrides)
@@ -139,6 +148,7 @@ def main() -> None:
         run_viewer(
             show_leader=flags.show_leader,
             show_sharpa=flags.show_sharpa,
+            ditto_3f=flags.ditto_3f,
             hardware=hardware,
             sharpa_follower=sharpa_follower,
             force_mode=force_mode,

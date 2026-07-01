@@ -20,11 +20,32 @@ SHARPA_URDF_TO_SDK_JOINT: dict[str, str] = {
     "right_index_MCP_AA": "Index MCP Abduction/Adduction",
     "right_index_PIP": "Index PIP Flexion/Extension",
     "right_index_DIP": "Index DIP Flexion/Extension",
+    "right_middle_MCP_FE": "Middle MCP Flexion/Extension",
+    "right_middle_MCP_AA": "Middle MCP Abduction/Adduction",
+    "right_middle_PIP": "Middle PIP Flexion/Extension",
+    "right_middle_DIP": "Middle DIP Flexion/Extension",
     "right_thumb_CMC_FE": "Thumb CMC Flexion/Extension",
     "right_thumb_CMC_AA": "Thumb CMC Abduction/Adduction",
     "right_thumb_MCP_FE": "Thumb MCP Flexion/Extension",
     "right_thumb_MCP_AA": "Thumb MCP Abduction/Adduction",
     "right_thumb_IP": "Thumb DIP Flexion/Extension",
+}
+
+# Ring / pinky hardware: copy the corresponding middle SDK joint target.
+SHARPA_MIDDLE_MIRROR_SDK_JOINTS: dict[str, str] = {
+    "Ring MCP Flexion/Extension": "Middle MCP Flexion/Extension",
+    "Ring MCP Abduction/Adduction": "Middle MCP Abduction/Adduction",
+    "Ring PIP Flexion/Extension": "Middle PIP Flexion/Extension",
+    "Ring DIP Flexion/Extension": "Middle DIP Flexion/Extension",
+    "Pinky MCP Flexion/Extension": "Middle MCP Flexion/Extension",
+    "Pinky MCP Abduction/Adduction": "Middle MCP Abduction/Adduction",
+    "Pinky PIP Flexion/Extension": "Middle PIP Flexion/Extension",
+    "Pinky DIP Flexion/Extension": "Middle DIP Flexion/Extension",
+}
+
+# SDK joints with no retargeted URDF source (held fixed on hardware).
+SHARPA_FOLLOWER_FIXED_SDK_TARGETS: dict[str, float] = {
+    "Pinky CMC Flexion/Extension": 0.0,
 }
 
 # Per-joint URDF -> SDK correction (identity until calibrated on hardware):
@@ -37,7 +58,15 @@ SHARPA_URDF_TO_SDK_OFFSET_RAD: dict[str, float] = {
 }
 
 # SDK joint names driven by the follower (enabled for position control).
-SHARPA_FOLLOWER_SDK_JOINTS: tuple[str, ...] = tuple(SHARPA_URDF_TO_SDK_JOINT.values())
+SHARPA_FOLLOWER_SDK_JOINTS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        (
+            *SHARPA_URDF_TO_SDK_JOINT.values(),
+            *SHARPA_MIDDLE_MIRROR_SDK_JOINTS,
+            *SHARPA_FOLLOWER_FIXED_SDK_TARGETS,
+        )
+    )
+)
 
 # Global sign relating SDK-reported joint torque to the external contact wrench.
 # The SDK reports the actuator's holding torque, which opposes the applied force,
@@ -48,7 +77,11 @@ SHARPA_TORQUE_FEEDBACK_SIGN: float = -1.0
 # --- Fingertip tactile sensors -------------------------------------------------
 # Tactile channel per finger. Right hand uses channels 0..4 (pinky, ring, middle,
 # index, thumb); left hand uses 5..9. The retargeting URDF is the right hand.
-SHARPA_TACTILE_CHANNEL_RIGHT: dict[str, int] = {"index": 3, "thumb": 4}
+SHARPA_TACTILE_CHANNEL_RIGHT: dict[str, int] = {
+    "index": 3,
+    "middle": 2,
+    "thumb": 4,
+}
 
 # Sign relating the tactile F6 force to the same "points against the push"
 # convention as the torque estimate. With the sensor->link rotation corrected, the
@@ -62,6 +95,7 @@ SHARPA_TACTILE_FORCE_SIGN: float = 1.0
 # force into Sharpa base axes (matching the torque-estimate source output).
 SHARPA_TACTILE_SENSOR_LINK_RIGHT: dict[str, str] = {
     "index": "right_index_fingertip",
+    "middle": "right_middle_fingertip",
     "thumb": "right_thumb_fingertip",
 }
 
@@ -77,6 +111,7 @@ SHARPA_TACTILE_SENSOR_LINK_RIGHT: dict[str, str] = {
 _TACTILE_SENSOR_TO_LINK_RPY = (-1.5707963267948966, 0.0, 1.5707963267948966)
 SHARPA_TACTILE_SENSOR_TO_LINK_RPY: dict[str, tuple[float, float, float]] = {
     "index": _TACTILE_SENSOR_TO_LINK_RPY,
+    "middle": _TACTILE_SENSOR_TO_LINK_RPY,
     "thumb": _TACTILE_SENSOR_TO_LINK_RPY,
 }
 
@@ -97,4 +132,7 @@ def urdf_q_to_sdk_targets(
             SHARPA_URDF_TO_SDK_SIGN[urdf_name] * angle
             + SHARPA_URDF_TO_SDK_OFFSET_RAD[urdf_name]
         )
+    for dst, src in SHARPA_MIDDLE_MIRROR_SDK_JOINTS.items():
+        targets[dst] = targets[src]
+    targets.update(SHARPA_FOLLOWER_FIXED_SDK_TARGETS)
     return targets

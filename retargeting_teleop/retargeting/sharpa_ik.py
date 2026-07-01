@@ -16,19 +16,21 @@ from .ik_utils import (
 )
 from .paths import (
     SHARPA_INDEX_JOINT_NAMES,
-    SHARPA_RETARGETING_PAD_LINKS,
+    SHARPA_MIDDLE_JOINT_NAMES,
     SHARPA_THUMB_JOINT_NAMES,
 )
 
-FingerName = Literal["index", "thumb"]
+FingerName = Literal["index", "thumb", "middle"]
 
 _FINGER_TO_PAD: dict[FingerName, str] = {
-    "index": SHARPA_RETARGETING_PAD_LINKS[0],
-    "thumb": SHARPA_RETARGETING_PAD_LINKS[1],
+    "index": "right_index_retargeting_pad",
+    "middle": "right_middle_retargeting_pad",
+    "thumb": "right_thumb_retargeting_pad",
 }
 
 _FINGER_TO_JOINTS: dict[FingerName, tuple[str, ...]] = {
     "index": SHARPA_INDEX_JOINT_NAMES,
+    "middle": SHARPA_MIDDLE_JOINT_NAMES,
     "thumb": SHARPA_THUMB_JOINT_NAMES,
 }
 

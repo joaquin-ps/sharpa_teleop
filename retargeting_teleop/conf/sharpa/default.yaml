@@ -1,12 +1,25 @@
 # @package sharpa
 
 serial: null
-# Index + thumb joints driven by retargeting (Sharpa SDK joint names).
+# Retargeted joints + ring/pinky mirrored from middle (Sharpa SDK joint names).
 enabled_joints:
   - "Index MCP Flexion/Extension"
   - "Index MCP Abduction/Adduction"
   - "Index PIP Flexion/Extension"
   - "Index DIP Flexion/Extension"
+  - "Middle MCP Flexion/Extension"
+  - "Middle MCP Abduction/Adduction"
+  - "Middle PIP Flexion/Extension"
+  - "Middle DIP Flexion/Extension"
+  - "Ring MCP Flexion/Extension"
+  - "Ring MCP Abduction/Adduction"
+  - "Ring PIP Flexion/Extension"
+  - "Ring DIP Flexion/Extension"
+  - "Pinky CMC Flexion/Extension"
+  - "Pinky MCP Flexion/Extension"
+  - "Pinky MCP Abduction/Adduction"
+  - "Pinky PIP Flexion/Extension"
+  - "Pinky DIP Flexion/Extension"
   - "Thumb CMC Flexion/Extension"
   - "Thumb CMC Abduction/Adduction"
   - "Thumb MCP Flexion/Extension"
@@ -15,7 +28,7 @@ enabled_joints:
 speed_coeff: 0.4
 current_coeff: 0.6
 discovery_timeout_s: 10.0
-io_frequency_hz: 400.0
+io_frequency_hz: 450.0
 
 # Override the SDK position-clamp limits (degrees), keyed by SDK joint name.
 # The follower applies these at startup to widen ROM without editing the
@@ -23,6 +36,18 @@ io_frequency_hz: 400.0
 # MCP_FE 0-30, MCP_AA 0-10, DIP 0-40. WARNING: only widen within the hand's
 # safe mechanical range. Set to {} to keep SDK defaults.
 angle_overrides_deg:
+  "Middle MCP Flexion/Extension": [-10, 80]
+  "Middle MCP Abduction/Adduction": [-20, 20]
+  "Middle PIP Flexion/Extension": [0, 80]
+  "Middle DIP Flexion/Extension": [0, 80]
+  "Ring MCP Flexion/Extension": [-10, 80]
+  "Ring MCP Abduction/Adduction": [-20, 20]
+  "Ring PIP Flexion/Extension": [0, 80]
+  "Ring DIP Flexion/Extension": [0, 80]
+  "Pinky MCP Flexion/Extension": [-10, 80]
+  "Pinky MCP Abduction/Adduction": [-20, 20]
+  "Pinky PIP Flexion/Extension": [0, 80]
+  "Pinky DIP Flexion/Extension": [0, 80]
   "Thumb CMC Flexion/Extension": [-5, 105] # (0, 80)
   "Thumb CMC Abduction/Adduction": [-18, 18] # (0, 20)
   "Thumb MCP Flexion/Extension": [-20, 60] # (0, 50)

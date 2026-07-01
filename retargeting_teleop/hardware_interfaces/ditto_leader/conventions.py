@@ -4,21 +4,65 @@ from __future__ import annotations
 
 import numpy as np
 
-from retargeting.paths import DITTO_INDEX_JOINT_NAMES, DITTO_LEADER_JOINT_NAMES
-
-# Per-joint sign: hardware encoder + vs URDF + (index joints are negated).
-DITTO_LEADER_HARDWARE_JOINT_SIGNS: tuple[float, ...] = tuple(
-    -1.0 if name in DITTO_INDEX_JOINT_NAMES else 1.0 for name in DITTO_LEADER_JOINT_NAMES
+from retargeting.paths import (
+    DITTO_3F_LEADER_JOINT_NAMES,
+    DITTO_3F_LEADER_MOTOR_IDS,
+    DITTO_INDEX_JOINT_NAMES,
+    DITTO_LEADER_JOINT_NAMES,
+    DITTO_LEADER_MOTOR_IDS,
+    DITTO_MIDDLE_JOINT_NAMES,
 )
 
-_SIGNS = np.array(DITTO_LEADER_HARDWARE_JOINT_SIGNS, dtype=float)
+# Per-joint sign: hardware encoder + vs URDF + (index/middle joints negated).
+_NEGATED_JOINTS = frozenset((*DITTO_INDEX_JOINT_NAMES, *DITTO_MIDDLE_JOINT_NAMES))
 
 
-def hardware_joint_angles_to_urdf(angles: np.ndarray) -> np.ndarray:
+def ditto_hardware_joint_signs(
+    joint_names: tuple[str, ...],
+) -> tuple[float, ...]:
+    return tuple(-1.0 if name in _NEGATED_JOINTS else 1.0 for name in joint_names)
+
+
+DITTO_LEADER_HARDWARE_JOINT_SIGNS: tuple[float, ...] = ditto_hardware_joint_signs(
+    DITTO_LEADER_JOINT_NAMES
+)
+DITTO_3F_LEADER_HARDWARE_JOINT_SIGNS: tuple[float, ...] = ditto_hardware_joint_signs(
+    DITTO_3F_LEADER_JOINT_NAMES
+)
+
+
+_MOTOR_TO_JOINT_NAME = dict(
+    zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES, strict=True)
+)
+
+
+def leader_joint_names_for_motor_ids(
+    motor_ids: list[int] | tuple[int, ...],
+) -> tuple[str, ...]:
+    """Map a leader motor chain to Ditto URDF joint names (hardware order)."""
+    motors = list(motor_ids)
+    if motors == list(DITTO_3F_LEADER_MOTOR_IDS):
+        return DITTO_3F_LEADER_JOINT_NAMES
+    if motors == list(DITTO_LEADER_MOTOR_IDS):
+        return DITTO_LEADER_JOINT_NAMES
+    try:
+        return tuple(_MOTOR_TO_JOINT_NAME[motor] for motor in motors)
+    except KeyError as exc:
+        raise ValueError(
+            "Leader motor_ids must be a known Ditto leader chain or a subset of "
+            f"10-DoF motors {list(DITTO_3F_LEADER_MOTOR_IDS)}, got {motors}"
+        ) from exc
+
+
+def hardware_joint_angles_to_urdf(
+    angles: np.ndarray,
+    joint_names: tuple[str, ...] = DITTO_LEADER_JOINT_NAMES,
+) -> np.ndarray:
     """Map finger_aloha leader joint angles (rad) to Ditto URDF ``q`` convention."""
     q = np.asarray(angles, dtype=float)
-    if q.shape[0] != len(DITTO_LEADER_JOINT_NAMES):
+    if q.shape[0] != len(joint_names):
         raise ValueError(
-            f"Expected {len(DITTO_LEADER_JOINT_NAMES)} joint angles, got {q.shape[0]}"
+            f"Expected {len(joint_names)} joint angles, got {q.shape[0]}"
         )
-    return q * _SIGNS
+    signs = np.array(ditto_hardware_joint_signs(joint_names), dtype=float)
+    return q * signs

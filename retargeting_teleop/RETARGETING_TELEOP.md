@@ -22,6 +22,7 @@ URDFs, joint sliders, live Ditto → Sharpa retargeting:
 python retargeting_teleop/viz/view_assets.py                 # both hands
 python retargeting_teleop/viz/view_assets.py --leader-only   # Ditto only
 python retargeting_teleop/viz/view_assets.py --sharpa-only   # Sharpa only
+python retargeting_teleop/viz/view_assets.py --3f            # 3-finger Ditto URDF
 ```
 
 ## Teleop with viewer (hardware opt-in)
@@ -43,6 +44,7 @@ python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true  # no D
 | `--ditto` | Enable Ditto leader hardware (encoders drive the viewer) |
 | `--sharpa` | Enable Sharpa follower hardware (stream retargeted joints) |
 | `--leader-only` / `--sharpa-only` | Show a single hand (no hardware) |
+| `--3f` | Use the 3-finger Ditto leader URDF (index + middle + thumb) |
 
 The control mode is **config-only** (`hand_config.control.fingers`); a
 tactile/mix config auto-enables `--sharpa`. The viewer still has a live **Force

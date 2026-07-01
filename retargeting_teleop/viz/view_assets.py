@@ -7,6 +7,7 @@ Usage (from sharpa_teleop repo root):
     python retargeting_teleop/viz/view_assets.py
     python retargeting_teleop/viz/view_assets.py --sharpa-only
     python retargeting_teleop/viz/view_assets.py --leader-only
+    python retargeting_teleop/viz/view_assets.py --3f   # 3-finger Ditto leader URDF
 
 From retargeting_teleop/ package dir:
     python viz/view_assets.py
@@ -40,13 +41,16 @@ from retargeting.retargeter import DittoToSharpaRetargeter, RetargetResult
 from retargeting.sharpa_ik import SharpaFingerIK
 from retargeting.paths import (
     DITTO_INDEX_JOINT_NAMES,
-    DITTO_LEADER_URDF,
+    DITTO_MIDDLE_JOINT_NAMES,
     DITTO_THUMB_JOINT_NAMES,
-    DITTO_VIZ_FRAME_LINKS,
+    SHARPA_3F_RETARGET_JOINT_NAMES,
     SHARPA_RIGHT_URDF,
     SHARPA_VIZ_FRAME_LINKS,
     SHARPA_LOCKED_JOINT_PREFIXES,
     SHARPA_SLIDER_JOINT_PREFIXES,
+    mirror_sharpa_middle_to_ring_pinky_cfg,
+    ditto_leader_urdf,
+    ditto_viz_frame_links,
 )
 from teleop.engine import RetargetTeleopEngine
 from teleop.force_sources import make_force_source
@@ -58,6 +62,7 @@ if TYPE_CHECKING:
 LINK_FRAME_STYLES: dict[str, dict] = {
     "retarget_base": {"origin_color": (80, 255, 80), "axes_length": 0.025},
     "index": {"origin_color": (0, 180, 255), "axes_length": 0.018},
+    "middle": {"origin_color": (180, 100, 255), "axes_length": 0.018},
     "thumb": {"origin_color": (255, 140, 0), "axes_length": 0.018},
 }
 
@@ -65,6 +70,12 @@ LINK_FRAME_STYLES: dict[str, dict] = {
 SHARPA_RETARGET_TARGET_STYLES: dict[str, dict] = {
     "index": {
         "origin_color": (170, 230, 255),
+        "axes_length": 0.015,
+        "axes_radius": 0.0012,
+        "origin_radius": 0.003,
+    },
+    "middle": {
+        "origin_color": (210, 170, 255),
         "axes_length": 0.015,
         "axes_radius": 0.0012,
         "origin_radius": 0.003,
@@ -80,6 +91,7 @@ SHARPA_RETARGET_TARGET_STYLES: dict[str, dict] = {
 # Estimated task-space force arrows on the Sharpa pads (sanity check).
 FORCE_ARROW_COLORS: dict[str, tuple[int, int, int]] = {
     "index": (255, 60, 60),
+    "middle": (180, 80, 255),
     "thumb": (255, 0, 200),
 }
 # Meters of arrow length per Newton of estimated force.
@@ -113,6 +125,8 @@ def _style_for_link(link_name: str) -> dict:
         return LINK_FRAME_STYLES["retarget_base"]
     if "thumb" in link_name:
         return LINK_FRAME_STYLES["thumb"]
+    if "middle" in link_name:
+        return LINK_FRAME_STYLES["middle"]
     return LINK_FRAME_STYLES["index"]
 
 
@@ -126,6 +140,7 @@ class RobotViz:
     slider_joint_names: list[str] = field(default_factory=list)
     initial_slider_values: list[float] = field(default_factory=list)
     locked_joint_values: dict[str, float] = field(default_factory=dict)
+    mirror_middle_to_ring_pinky: bool = False
     ik_gizmos: dict[str, viser.TransformControlsHandle] = field(default_factory=dict)
     ik_dragging: dict[str, bool] = field(default_factory=dict)
     suppress_slider_callbacks: bool = False
@@ -133,8 +148,7 @@ class RobotViz:
 
 @dataclass
 class SharpaRetargetTargetViz:
-    index_frame: viser.FrameHandle
-    thumb_frame: viser.FrameHandle
+    frames: dict[str, viser.FrameHandle]
 
 
 def _viser_cfg_to_pin_q(hand_ik: DittoFingerIK | SharpaFingerIK, cfg: np.ndarray, joint_names: list[str]) -> np.ndarray:
@@ -217,14 +231,16 @@ def _add_ditto_ik_gizmos(
     robot: RobotViz,
     ik: DittoFingerIK,
     *,
+    fingers: tuple[FingerName, ...] = ("index", "thumb"),
     on_gizmo_change: Callable[[IkSolveParams], None] | None = None,
 ) -> None:
     """World-space drag targets parented under the Ditto mount (= base_link)."""
     gizmo_styles = {
         "index": {"scale": 0.018, "opacity": 0.9},
+        "middle": {"scale": 0.018, "opacity": 0.9},
         "thumb": {"scale": 0.018, "opacity": 0.9},
     }
-    for finger in ("index", "thumb"):
+    for finger in fingers:
         style = gizmo_styles[finger]
         gizmo = server.scene.add_transform_controls(
             f"{robot.root_name}/ik_gizmo/{finger}",
@@ -285,28 +301,13 @@ def _build_full_configuration(robot: RobotViz) -> np.ndarray:
         q[joint_names.index(name)] = value
     for joint_name, slider in zip(robot.slider_joint_names, robot.slider_handles):
         q[joint_names.index(joint_name)] = float(slider.value)
+    if robot.mirror_middle_to_ring_pinky:
+        mirror_sharpa_middle_to_ring_pinky_cfg(q, joint_names)
     return q
 
 
 def _apply_configuration(robot: RobotViz) -> None:
     robot.viser_urdf.update_cfg(_build_full_configuration(robot))
-
-
-def _apply_ditto_cfg_from_angles(robot: RobotViz, joint_angles: np.ndarray) -> None:
-    """Apply leader joint angles (rad) to the Ditto Viser model and sliders."""
-    joint_names = list(robot.viser_urdf.get_actuated_joint_names())
-    cfg = np.asarray(joint_angles, dtype=float)
-    if cfg.shape[0] != len(joint_names):
-        raise ValueError(
-            f"Expected {len(joint_names)} Ditto joint angles, got {cfg.shape[0]}"
-        )
-    robot.suppress_slider_callbacks = True
-    try:
-        robot.viser_urdf.update_cfg(cfg)
-        for joint_name, slider in zip(robot.slider_joint_names, robot.slider_handles):
-            slider.value = float(cfg[joint_names.index(joint_name)])
-    finally:
-        robot.suppress_slider_callbacks = False
 
 
 def _visual_prefix(root_name: str) -> str:
@@ -338,10 +339,12 @@ def _add_link_frames(
 def _add_sharpa_retarget_target_frames(
     server: viser.ViserServer,
     sharpa_robot: RobotViz,
+    *,
+    fingers: tuple[FingerName, ...] = ("index", "thumb"),
 ) -> SharpaRetargetTargetViz:
     """Ghost pad frames in Sharpa base_link showing the IK target pose."""
     frames: dict[str, viser.FrameHandle] = {}
-    for finger in ("index", "thumb"):
+    for finger in fingers:
         style = SHARPA_RETARGET_TARGET_STYLES[finger]
         frames[finger] = server.scene.add_frame(
             f"{sharpa_robot.root_name}/retarget_target/{finger}",
@@ -351,21 +354,20 @@ def _add_sharpa_retarget_target_frames(
             origin_radius=style["origin_radius"],
             origin_color=style["origin_color"],
         )
-    return SharpaRetargetTargetViz(
-        index_frame=frames["index"],
-        thumb_frame=frames["thumb"],
-    )
+    return SharpaRetargetTargetViz(frames=frames)
 
 
 def _sync_sharpa_retarget_target_frames(
     target_viz: SharpaRetargetTargetViz,
     result: RetargetResult,
 ) -> None:
-    for finger, pose, handle in (
-        ("index", result.index_target_in_sharpa_base, target_viz.index_frame),
-        ("thumb", result.thumb_target_in_sharpa_base, target_viz.thumb_frame),
-    ):
-        position, wxyz = _viser_pose_from_pin_se3(pose)
+    targets = {
+        "index": result.index_target_in_sharpa_base,
+        "middle": result.middle_target_in_sharpa_base,
+        "thumb": result.thumb_target_in_sharpa_base,
+    }
+    for finger, handle in target_viz.frames.items():
+        position, wxyz = _viser_pose_from_pin_se3(targets[finger])
         handle.position = position
         handle.wxyz = wxyz
 
@@ -472,8 +474,19 @@ def _slider_joint_names_for_robot(
     viser_urdf: ViserUrdf,
     *,
     sharpa_index_thumb_only: bool,
+    sharpa_3f_retarget: bool = False,
 ) -> tuple[list[str], dict[str, float]]:
     all_names = list(viser_urdf.get_actuated_joint_names())
+    if sharpa_3f_retarget:
+        slider_names = [
+            name for name in SHARPA_3F_RETARGET_JOINT_NAMES if name in all_names
+        ]
+        locked_values = {
+            name: 0.0
+            for name in all_names
+            if name not in slider_names
+        }
+        return slider_names, locked_values
     if not sharpa_index_thumb_only:
         return all_names, {}
 
@@ -486,6 +499,7 @@ def _slider_joint_names_for_robot(
         name: 0.0
         for name in all_names
         if _joint_allowed(name, SHARPA_LOCKED_JOINT_PREFIXES)
+        or name.startswith("right_middle_")
     }
     return slider_names, locked_values
 
@@ -500,6 +514,7 @@ def _add_robot(
     frame_links: tuple[str, ...],
     *,
     sharpa_index_thumb_only: bool = False,
+    sharpa_3f_retarget: bool = False,
     on_before_slider_apply: Callable[[], None] | None = None,
     mount_rpy_deg: tuple[float, float, float] | None = None,
 ) -> RobotViz:
@@ -522,6 +537,7 @@ def _add_robot(
     slider_joint_names, locked_values = _slider_joint_names_for_robot(
         viser_urdf,
         sharpa_index_thumb_only=sharpa_index_thumb_only,
+        sharpa_3f_retarget=sharpa_3f_retarget,
     )
 
     robot = RobotViz(
@@ -530,6 +546,7 @@ def _add_robot(
         root_name=root_name,
         mount_frame=mount_frame,
         locked_joint_values=locked_values,
+        mirror_middle_to_ring_pinky=sharpa_index_thumb_only or sharpa_3f_retarget,
     )
     _create_joint_sliders(
         server,
@@ -547,6 +564,7 @@ def run_viewer(
     *,
     show_leader: bool = True,
     show_sharpa: bool = True,
+    ditto_3f: bool = False,
     hardware: LeaderHardwareSession | None = None,
     sharpa_follower: "SharpaFollowerSession | None" = None,
     force_mode: str = "estimate",
@@ -554,8 +572,14 @@ def run_viewer(
     tactile_debug: bool = False,
 ) -> None:
 
+    leader_urdf = ditto_leader_urdf(three_finger=ditto_3f)
+    leader_frame_links = ditto_viz_frame_links(three_finger=ditto_3f)
+    retarget_fingers: tuple[FingerName, ...] = (
+        ("index", "middle", "thumb") if ditto_3f else ("index", "thumb")
+    )
+
     for label, path in (
-        ("Ditto leader", DITTO_LEADER_URDF),
+        ("Ditto leader", leader_urdf),
         ("Sharpa right hand", SHARPA_RIGHT_URDF),
     ):
         if not path.is_file():
@@ -655,9 +679,14 @@ def run_viewer(
         if sharpa_retarget_targets is not None:
             _sync_sharpa_retarget_target_frames(sharpa_retarget_targets, result)
         if retarget_error_markdown is not None:
+            parts = [
+                f"index {result.index_residual:.3f}",
+                f"thumb {result.thumb_residual:.3f}",
+            ]
+            if ditto_3f:
+                parts.insert(1, f"middle {result.middle_residual:.3f}")
             retarget_error_markdown.content = (
-                f"**Retarget IK error (rad):** index {result.index_residual:.3f}, "
-                f"thumb {result.thumb_residual:.3f}"
+                "**Retarget IK error (rad):** " + ", ".join(parts)
             )
 
     def _update_force_estimate(last_log: dict[str, float]) -> None:
@@ -808,7 +837,12 @@ def run_viewer(
             )
 
             with server.gui.add_folder("Would-be leader joint torque (Nm)"):
-                for _jname in (*DITTO_INDEX_JOINT_NAMES, *DITTO_THUMB_JOINT_NAMES):
+                leader_torque_joint_names = (
+                    *DITTO_INDEX_JOINT_NAMES,
+                    *(DITTO_MIDDLE_JOINT_NAMES if ditto_3f else ()),
+                    *DITTO_THUMB_JOINT_NAMES,
+                )
+                for _jname in leader_torque_joint_names:
                     leader_torque_sliders[_jname] = server.gui.add_slider(
                         _jname,
                         min=-LEADER_TORQUE_SLIDER_RANGE,
@@ -853,7 +887,7 @@ def run_viewer(
         _retarget_ditto_to_sharpa(IK_POLISH)
 
     if show_leader:
-        ditto_ik = DittoFingerIK(DITTO_LEADER_URDF)
+        ditto_ik = DittoFingerIK(leader_urdf)
 
         def _on_ditto_slider_change() -> None:
             if ditto_robot is None or ditto_ik is None:
@@ -867,12 +901,12 @@ def run_viewer(
 
         ditto_robot = _add_robot(
             server,
-            DITTO_LEADER_URDF,
-            name="Ditto leader",
+            leader_urdf,
+            name="Ditto leader" + (" (3f)" if ditto_3f else ""),
             root_name="/ditto_leader",
             position=DITTO_DEFAULT_MOUNT_POSITION,
             slider_folder="Ditto leader joints",
-            frame_links=DITTO_VIZ_FRAME_LINKS,
+            frame_links=leader_frame_links,
             on_before_slider_apply=_on_ditto_slider_change,
             mount_rpy_deg=DITTO_DEFAULT_MOUNT_RPY_DEG,
         )
@@ -880,6 +914,7 @@ def run_viewer(
             server,
             ditto_robot,
             ditto_ik,
+            fingers=retarget_fingers,
             on_gizmo_change=_on_ditto_gizmo_change,
         )
         robots.append(ditto_robot)
@@ -892,15 +927,23 @@ def run_viewer(
             name="Sharpa right hand",
             root_name="/sharpa_right",
             position=SHARPA_DEFAULT_MOUNT_POSITION,
-            slider_folder="Sharpa index + thumb joints",
+            slider_folder=(
+                "Sharpa index + middle + thumb joints"
+                if ditto_3f
+                else "Sharpa index + thumb joints"
+            ),
             frame_links=SHARPA_VIZ_FRAME_LINKS,
-            sharpa_index_thumb_only=True,
+            sharpa_index_thumb_only=not ditto_3f,
+            sharpa_3f_retarget=ditto_3f,
         )
         robots.append(sharpa_robot)
 
     if show_leader and show_sharpa:
         engine = RetargetTeleopEngine(
-            hardware=hardware, sharpa_follower=sharpa_follower
+            hardware=hardware,
+            sharpa_follower=sharpa_follower,
+            retargeter=DittoToSharpaRetargeter(ditto_urdf=leader_urdf),
+            fingers=retarget_fingers,
         )
         retargeter = engine.retargeter
         assert sharpa_robot is not None and sharpa_ik is not None
@@ -921,7 +964,9 @@ def run_viewer(
                 if force_mode != "estimate" and not _set_force_source(force_mode):
                     if force_source_dropdown is not None:
                         force_source_dropdown.value = "estimate"
-        sharpa_retarget_targets = _add_sharpa_retarget_target_frames(server, sharpa_robot)
+        sharpa_retarget_targets = _add_sharpa_retarget_target_frames(
+            server, sharpa_robot, fingers=retarget_fingers
+        )
         retarget_error_markdown = server.gui.add_markdown(
             "**Retarget IK error (rad):** —"
         )
@@ -940,6 +985,15 @@ def run_viewer(
                 step=0.01,
                 initial_value=retargeter.thumb_cartesian_scale,
             )
+            middle_scale_slider = None
+            if ditto_3f:
+                middle_scale_slider = server.gui.add_slider(
+                    "Middle scale",
+                    min=0.25,
+                    max=3.0,
+                    step=0.01,
+                    initial_value=retargeter.middle_cartesian_scale,
+                )
 
             @index_scale_slider.on_update
             def _(_: viser.GuiEvent) -> None:
@@ -952,6 +1006,14 @@ def run_viewer(
                 assert retargeter is not None and thumb_scale_slider is not None
                 retargeter.thumb_cartesian_scale = float(thumb_scale_slider.value)
                 _retarget_ditto_to_sharpa(IK_POLISH)
+
+            if middle_scale_slider is not None:
+
+                @middle_scale_slider.on_update
+                def _(_: viser.GuiEvent) -> None:
+                    assert retargeter is not None
+                    retargeter.middle_cartesian_scale = float(middle_scale_slider.value)
+                    _retarget_ditto_to_sharpa(IK_POLISH)
 
         with server.gui.add_folder("Retarget IK weights"):
             index_pos_weight_slider = server.gui.add_slider(
@@ -982,6 +1044,23 @@ def run_viewer(
                 step=0.05,
                 initial_value=retargeter.thumb_orientation_weight,
             )
+            middle_pos_weight_slider = None
+            middle_ori_weight_slider = None
+            if ditto_3f:
+                middle_pos_weight_slider = server.gui.add_slider(
+                    "Middle position weight",
+                    min=0.0,
+                    max=5.0,
+                    step=0.05,
+                    initial_value=retargeter.middle_position_weight,
+                )
+                middle_ori_weight_slider = server.gui.add_slider(
+                    "Middle orientation weight",
+                    min=0.0,
+                    max=5.0,
+                    step=0.05,
+                    initial_value=retargeter.middle_orientation_weight,
+                )
 
             @index_pos_weight_slider.on_update
             def _(_: viser.GuiEvent) -> None:
@@ -1007,12 +1086,32 @@ def run_viewer(
                 retargeter.thumb_orientation_weight = float(thumb_ori_weight_slider.value)
                 _retarget_ditto_to_sharpa(IK_POLISH)
 
+            if middle_pos_weight_slider is not None:
+
+                @middle_pos_weight_slider.on_update
+                def _(_: viser.GuiEvent) -> None:
+                    assert retargeter is not None
+                    retargeter.middle_position_weight = float(
+                        middle_pos_weight_slider.value
+                    )
+                    _retarget_ditto_to_sharpa(IK_POLISH)
+
+            if middle_ori_weight_slider is not None:
+
+                @middle_ori_weight_slider.on_update
+                def _(_: viser.GuiEvent) -> None:
+                    assert retargeter is not None
+                    retargeter.middle_orientation_weight = float(
+                        middle_ori_weight_slider.value
+                    )
+                    _retarget_ditto_to_sharpa(IK_POLISH)
+
         _retarget_ditto_to_sharpa(IK_POLISH)
 
     server.scene.add_grid("/grid", width=1.0, height=1.0, position=(0.0, 0.0, 0.0))
 
     print("Viser asset viewer running.")
-    print(f"  Ditto leader URDF: {DITTO_LEADER_URDF}")
+    print(f"  Ditto leader URDF: {leader_urdf}")
     print(f"  Sharpa right URDF: {SHARPA_RIGHT_URDF}")
     if hardware is not None:
         port = hardware.config.u2d2.get("usb_port", "/dev/ttyUSB0")
@@ -1020,7 +1119,8 @@ def run_viewer(
         if not hardware.is_receiving:
             print("  Waiting for valid encoder reads (sliders/gizmos work meanwhile).")
     if sharpa_follower is not None:
-        print("  Sharpa follower: streaming retargeted index + thumb joints.")
+        finger_desc = "index + middle + thumb" if ditto_3f else "index + thumb"
+        print(f"  Sharpa follower: streaming retargeted {finger_desc} joints.")
     print("Press Ctrl+C to exit.")
 
     needs_fast_poll = hardware is not None or sharpa_follower is not None
@@ -1039,7 +1139,7 @@ def run_viewer(
             ):
                 angles = hardware.poll_joint_angles()
                 if angles is not None:
-                    _apply_ditto_cfg_from_angles(ditto_robot, angles)
+                    _set_configuration_from_pin_q(ditto_robot, ditto_ik, angles)
                     _sync_ik_gizmos(ditto_robot, ditto_ik)
                     # Retarget IK is expensive; run it decoupled from the poll so
                     # it does not starve the 200 Hz hardware read thread.
@@ -1087,6 +1187,11 @@ def main() -> None:
         action="store_true",
         help="Show only the Sharpa right-hand URDF.",
     )
+    parser.add_argument(
+        "--3f",
+        action="store_true",
+        help="Use the 3-finger Ditto leader URDF (index + middle + thumb).",
+    )
     args = parser.parse_args()
 
     if args.leader_only and args.sharpa_only:
@@ -1095,6 +1200,7 @@ def main() -> None:
     run_viewer(
         show_leader=not args.sharpa_only,
         show_sharpa=not args.leader_only,
+        ditto_3f=args.__dict__["3f"],
         hardware=None,
     )
 

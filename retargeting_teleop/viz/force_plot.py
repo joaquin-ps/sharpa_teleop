@@ -51,14 +51,19 @@ import numpy as np  # noqa: E402
 from hydra import compose, initialize_config_dir  # noqa: E402
 
 from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
-from retargeting.paths import DITTO_LEADER_JOINT_NAMES, DITTO_LEADER_MOTOR_IDS  # noqa: E402
+from retargeting.paths import (  # noqa: E402
+    DITTO_3F_LEADER_JOINT_NAMES,
+    DITTO_3F_LEADER_MOTOR_IDS,
+    DITTO_LEADER_JOINT_NAMES,
+    DITTO_LEADER_MOTOR_IDS,
+)
 from teleop.force_render import (  # noqa: E402
     RetargetForceRenderTeleop,
     config_needs_tactile,
     finger_modes_from_config,
 )
 
-_MOTOR_TO_JOINT = dict(zip(DITTO_LEADER_MOTOR_IDS, DITTO_LEADER_JOINT_NAMES))
+_MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
 
 DEFAULT_HAND_CONFIG = "ditto_index_force_render"
 

@@ -43,31 +43,42 @@ from finger_aloha.utils.utils import precise_sleep  # noqa: E402
 
 from retargeting.ik_utils import IK_STREAM  # noqa: E402
 from hardware_interfaces.ditto_leader.conventions import (  # noqa: E402
-    DITTO_LEADER_HARDWARE_JOINT_SIGNS,
+    DITTO_3F_LEADER_HARDWARE_JOINT_SIGNS,
+    ditto_hardware_joint_signs,
+    leader_joint_names_for_motor_ids,
 )
 from retargeting.paths import (  # noqa: E402
+    DITTO_3F_LEADER_JOINT_NAMES,
+    DITTO_3F_LEADER_MOTOR_IDS,
     DITTO_INDEX_JOINT_NAMES,
-    DITTO_LEADER_JOINT_NAMES,
     DITTO_LEADER_MOTOR_IDS,
+    DITTO_MIDDLE_JOINT_NAMES,
     DITTO_THUMB_JOINT_NAMES,
     SHARPA_INDEX_JOINT_NAMES,
+    SHARPA_MIDDLE_JOINT_NAMES,
     SHARPA_THUMB_JOINT_NAMES,
+    ditto_leader_urdf,
 )
+from retargeting.retargeter import DittoToSharpaRetargeter  # noqa: E402
 from teleop.engine import RetargetTeleopEngine  # noqa: E402
 from teleop.force_sources import make_force_source_per_finger  # noqa: E402
 
 if TYPE_CHECKING:
     from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
-_MOTOR_TO_JOINT = dict(zip(DITTO_LEADER_MOTOR_IDS, DITTO_LEADER_JOINT_NAMES))
-_JOINT_SIGN = dict(zip(DITTO_LEADER_JOINT_NAMES, DITTO_LEADER_HARDWARE_JOINT_SIGNS))
+_MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
+_JOINT_SIGN = dict(
+    zip(DITTO_3F_LEADER_JOINT_NAMES, DITTO_3F_LEADER_HARDWARE_JOINT_SIGNS, strict=True)
+)
 _JOINT_TO_FINGER = {
     **{name: "index" for name in DITTO_INDEX_JOINT_NAMES},
+    **{name: "middle" for name in DITTO_MIDDLE_JOINT_NAMES},
     **{name: "thumb" for name in DITTO_THUMB_JOINT_NAMES},
 }
 # Sharpa URDF joint name order per finger (matches read_wrench_inputs torque order).
 _SHARPA_FINGER_JOINTS = {
     "index": SHARPA_INDEX_JOINT_NAMES,
+    "middle": SHARPA_MIDDLE_JOINT_NAMES,
     "thumb": SHARPA_THUMB_JOINT_NAMES,
 }
 
@@ -247,8 +258,14 @@ class RetargetForceRenderTeleop:
         self._joint_map = self._parse_joint_map()
 
         # The engine retargets (IK) only the retarget-position fingers.
+        # Middle joints live on the 3-finger Ditto URDF only.
+        use_3f_urdf = "middle" in all_fingers
         self.engine = RetargetTeleopEngine(
-            sharpa_follower=sharpa_follower, fingers=self._position_retarget_fingers
+            sharpa_follower=sharpa_follower,
+            fingers=self._position_retarget_fingers,
+            retargeter=DittoToSharpaRetargeter(
+                ditto_urdf=ditto_leader_urdf(three_finger=use_3f_urdf)
+            ),
         )
         self.sharpa_follower = sharpa_follower
 
@@ -291,7 +308,8 @@ class RetargetForceRenderTeleop:
             if motor not in _MOTOR_TO_JOINT:
                 raise ValueError(
                     f"Leader motor {motor} is not a known Ditto motor "
-                    f"{list(DITTO_LEADER_MOTOR_IDS)}"
+                    f"(7-DoF {list(DITTO_LEADER_MOTOR_IDS)} or "
+                    f"10-DoF {list(DITTO_3F_LEADER_MOTOR_IDS)})"
                 )
 
     def _make_force_source(self):
@@ -427,13 +445,17 @@ class RetargetForceRenderTeleop:
     # ----- control loop ------------------------------------------------------
 
     def _ditto_q_from_leader(self, leader_motor_data: list[MotorData]) -> np.ndarray:
-        """Full leader pin ``q`` (URDF convention) from leader reads; thumb at 0."""
-        urdf_angles = np.zeros(len(DITTO_LEADER_JOINT_NAMES), dtype=float)
+        """Full leader pin ``q`` (URDF convention) from leader motor reads."""
+        joint_names = leader_joint_names_for_motor_ids(self.leader_chain)
+        signs = dict(
+            zip(joint_names, ditto_hardware_joint_signs(joint_names), strict=True)
+        )
+        urdf_angles = np.zeros(len(joint_names), dtype=float)
         for i, motor in enumerate(self.leader_chain):
             joint = _MOTOR_TO_JOINT[motor]
-            jidx = DITTO_LEADER_JOINT_NAMES.index(joint)
-            urdf_angles[jidx] = _JOINT_SIGN[joint] * leader_motor_data[i].joint_angle
-        return self.engine.ditto_q_from_actuated(urdf_angles)
+            jidx = joint_names.index(joint)
+            urdf_angles[jidx] = signs[joint] * leader_motor_data[i].joint_angle
+        return self.engine.ditto_q_from_actuated(urdf_angles, joint_names)
 
     def _apply_joint_map(self, ditto_q: np.ndarray) -> None:
         """Joint-position fingers: write direct leader→Sharpa joint targets into sharpa_q.
