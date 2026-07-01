@@ -904,6 +904,18 @@
     <child link="right_middle_fingertip" />
     <axis xyz="0 0 0" />
   </joint>
+  <link name="right_middle_retargeting_pad">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1.0E-06" />
+      <inertia ixx="1.0E-12" ixy="0" ixz="0" iyy="1.0E-12" iyz="0" izz="1.0E-12" />
+    </inertial>
+  </link>
+  <joint name="right_middle_retargeting_pad_joint" type="fixed">
+    <origin xyz="0.0 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
+    <parent link="right_middle_fingertip" />
+    <child link="right_middle_retargeting_pad" />
+  </joint>
   <link name="right_ring_MCP_VL">
     <inertial>
       <origin
