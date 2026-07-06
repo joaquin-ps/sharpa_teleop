@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Ditto leader hardware + Sharpa retargeting + Sharpa follower hardware in Viser.
 
-Reads the physical Ditto leader via finger_aloha (leader-only, torque_off, no
-force feedback), retargets Ditto→Sharpa, and streams the result to the physical
-Sharpa Wave hand. Either hardware interface can be disabled independently.
+Reads the physical Ditto leader and retargets Ditto→Sharpa to the Sharpa Wave
+hand. Leader-only configs use ``torque_off`` (encoders only); force-rendering
+configs (``leader.mode: current``) run the full haptic loop via
+``RetargetForceRenderTeleop``.
 
 Hardware is OFF by default (viewer only); opt in per interface with --ditto
 and/or --sharpa.
@@ -30,6 +31,8 @@ From retargeting_teleop/ package dir:
 from __future__ import annotations
 
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,7 +48,9 @@ from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
 from retargeting.paths import DITTO_LEADER_ONLY_HAND_CONFIG, DITTO_3F_LEADER_ONLY_HAND_CONFIG  # noqa: E402
 from hardware_interfaces.ditto_leader import LeaderHardwareSession  # noqa: E402
 from teleop.force_render import (  # noqa: E402
+    RetargetForceRenderTeleop,
     config_needs_tactile,
+    is_force_render_config,
     viewer_initial_source,
 )
 from viz.view_assets import run_viewer  # noqa: E402
@@ -121,28 +126,49 @@ def main() -> None:
     fr_cfg = cfg.hand_config.get("force_render") or {}
     tactile_calibrate = bool(fr_cfg.get("calibrate", False))
     tactile_debug = bool(fr_cfg.get("debug", False))
-    # tactile/mix need the real Sharpa hand → auto-enable when both hands shown.
+    # tactile/mix/measured need Sharpa → auto-enable when both hands shown.
     if config_needs_tactile(cfg) and flags.show_leader and flags.show_sharpa:
         flags.sharpa_hardware = True
+    if is_force_render_config(cfg) and flags.ditto_hardware:
+        flags.sharpa_hardware = flags.sharpa_hardware or flags.show_sharpa
 
     hardware = None
-    if flags.ditto_hardware:
-        hardware = LeaderHardwareSession(cfg)
-        print("Connecting Ditto leader hardware...")
-        hardware.start()
-        print(
-            f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
-            f"(mode={cfg.hand_config.leader.mode}, "
-            f"follower={cfg.hand_config.follower.mode})"
-        )
-
+    force_render_controller: RetargetForceRenderTeleop | None = None
     sharpa_follower = None
     if flags.sharpa_hardware:
-        # Imported lazily: this pulls in the Sharpa Wave SDK. Connection happens
-        # inside run_viewer once the Sharpa IK joint indexing is available.
         from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
         sharpa_follower = SharpaFollowerSession(cfg, verbose=True)
+
+    if flags.ditto_hardware:
+        if is_force_render_config(cfg):
+            print("Connecting Ditto leader (current mode / force rendering)...")
+            force_render_controller = RetargetForceRenderTeleop(
+                cfg, sharpa_follower=sharpa_follower
+            )
+            force_render_controller.connect()
+            force_render_controller.setup_motors()
+            threading.Thread(
+                target=force_render_controller.start_control_loop,
+                daemon=True,
+                name="ditto-force-render",
+            ).start()
+            time.sleep(0.3)
+            print(
+                f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
+                f"(mode={cfg.hand_config.leader.mode}, haptics on)"
+            )
+            # Sharpa lifecycle is owned by the force-render controller.
+            sharpa_follower = None
+        else:
+            hardware = LeaderHardwareSession(cfg)
+            print("Connecting Ditto leader hardware...")
+            hardware.start()
+            print(
+                f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
+                f"(mode={cfg.hand_config.leader.mode}, "
+                f"follower={cfg.hand_config.follower.mode})"
+            )
 
     try:
         run_viewer(
@@ -151,13 +177,18 @@ def main() -> None:
             ditto_3f=flags.ditto_3f,
             hardware=hardware,
             sharpa_follower=sharpa_follower,
+            force_render_controller=force_render_controller,
             force_mode=force_mode,
             tactile_calibrate=tactile_calibrate,
             tactile_debug=tactile_debug,
+            sharpa_cfg=cfg.sharpa,
         )
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
+        if force_render_controller is not None:
+            force_render_controller.stop()
+            force_render_controller.disconnect()
         if hardware is not None:
             hardware.stop()
         if sharpa_follower is not None:

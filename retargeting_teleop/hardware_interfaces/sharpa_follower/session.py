@@ -34,6 +34,7 @@ from retargeting.paths import (  # noqa: E402
     SHARPA_INDEX_JOINT_NAMES,
     SHARPA_MIDDLE_JOINT_NAMES,
     SHARPA_THUMB_JOINT_NAMES,
+    parse_ring_pinky_mirror_offsets,
 )
 
 _FINGER_URDF_JOINTS: dict[str, tuple[str, ...]] = {
@@ -56,6 +57,9 @@ class SharpaFollowerSession:
         self._tactile_ready = False
         self.tactile_timeout_s = float(
             config.sharpa.get("tactile_timeout_s", 0.005)
+        )
+        self._ring_pinky_mirror_offsets = parse_ring_pinky_mirror_offsets(
+            config.sharpa.get("ring_pinky_mirror_offset_rad")
         )
 
     @property
@@ -110,7 +114,11 @@ class SharpaFollowerSession:
         """Send a retargeted Sharpa URDF configuration to the hand (no-op if idle)."""
         if not self._started or self.sharpa_hand is None or self._q_index is None:
             return
-        targets = urdf_q_to_sdk_targets(sharpa_q, self._q_index.__getitem__)
+        targets = urdf_q_to_sdk_targets(
+            sharpa_q,
+            self._q_index.__getitem__,
+            self._ring_pinky_mirror_offsets,
+        )
         self.sharpa_hand.send_positions(targets)
 
     def read_wrench_inputs(

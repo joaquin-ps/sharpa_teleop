@@ -25,10 +25,27 @@ enabled_joints:
   - "Thumb MCP Flexion/Extension"
   - "Thumb MCP Abduction/Adduction"
   - "Thumb DIP Flexion/Extension"
-speed_coeff: 0.4
+speed_coeff: 0.5
 current_coeff: 0.6
 discovery_timeout_s: 10.0
 io_frequency_hz: 450.0
+
+# Ring/pinky follow middle joint-for-joint. Per-finger per-suffix offset (rad) is
+# *subtracted* when copying middle → ring/pinky so those fingers lag behind.
+# Tune in the viewer (--3f) or override at runtime, e.g.:
+#   sharpa.ring_pinky_mirror_offset_rad.ring.PIP=0.10
+#   sharpa.ring_pinky_mirror_offset_rad.pinky.PIP=0.14
+ring_pinky_mirror_offset_rad:
+  ring:
+    MCP_FE: 0.08
+    MCP_AA: 0.0
+    PIP: 0.04
+    DIP: 0.0
+  pinky:
+    MCP_FE: 0.1
+    MCP_AA: 0.0
+    PIP: 0.1
+    DIP: 0.0
 
 # Override the SDK position-clamp limits (degrees), keyed by SDK joint name.
 # The follower applies these at startup to widen ROM without editing the
@@ -36,17 +53,21 @@ io_frequency_hz: 450.0
 # MCP_FE 0-30, MCP_AA 0-10, DIP 0-40. WARNING: only widen within the hand's
 # safe mechanical range. Set to {} to keep SDK defaults.
 angle_overrides_deg:
+  "Index MCP Flexion/Extension": [-10, 80]
+  "Index MCP Abduction/Adduction": [-20, 20]
+  "Index PIP Flexion/Extension": [0, 95]
+  "Index DIP Flexion/Extension": [0, 80]
   "Middle MCP Flexion/Extension": [-10, 80]
   "Middle MCP Abduction/Adduction": [-20, 20]
-  "Middle PIP Flexion/Extension": [0, 80]
+  "Middle PIP Flexion/Extension": [0, 95]
   "Middle DIP Flexion/Extension": [0, 80]
   "Ring MCP Flexion/Extension": [-10, 80]
   "Ring MCP Abduction/Adduction": [-20, 20]
-  "Ring PIP Flexion/Extension": [0, 80]
+  "Ring PIP Flexion/Extension": [0, 95]
   "Ring DIP Flexion/Extension": [0, 80]
   "Pinky MCP Flexion/Extension": [-10, 80]
   "Pinky MCP Abduction/Adduction": [-20, 20]
-  "Pinky PIP Flexion/Extension": [0, 80]
+  "Pinky PIP Flexion/Extension": [0, 95]
   "Pinky DIP Flexion/Extension": [0, 80]
   "Thumb CMC Flexion/Extension": [-5, 105] # (0, 80)
   "Thumb CMC Abduction/Adduction": [-18, 18] # (0, 20)

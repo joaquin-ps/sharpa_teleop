@@ -358,7 +358,7 @@
     </inertial>
   </link>
   <joint name="right_thumb_retargeting_pad_joint" type="fixed">
-    <origin xyz="0.0 0 -0.010" rpy="3.141592653589793 -1.5707963267949 0" />
+    <origin xyz="-0.005 0 -0.010" rpy="3.141592653589793 -1.5707963267949 0" />
     <parent link="right_thumb_fingertip" />
     <child link="right_thumb_retargeting_pad" />
   </joint>
@@ -635,7 +635,7 @@
     </inertial>
   </link>
   <joint name="right_index_retargeting_pad_joint" type="fixed">
-    <origin xyz="0.0 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
+    <origin xyz="-0.005 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
     <parent link="right_index_fingertip" />
     <child link="right_index_retargeting_pad" />
   </joint>
@@ -912,7 +912,7 @@
     </inertial>
   </link>
   <joint name="right_middle_retargeting_pad_joint" type="fixed">
-    <origin xyz="0.0 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
+    <origin xyz="-0.005 0 -0.01" rpy="3.141592653589793 -1.5707963267949 0" />
     <parent link="right_middle_fingertip" />
     <child link="right_middle_retargeting_pad" />
   </joint>

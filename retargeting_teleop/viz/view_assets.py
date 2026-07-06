@@ -58,6 +58,7 @@ from hardware_interfaces.ditto_leader import LeaderHardwareSession
 
 if TYPE_CHECKING:
     from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
+    from teleop.force_render import RetargetForceRenderTeleop
 
 LINK_FRAME_STYLES: dict[str, dict] = {
     "retarget_base": {"origin_color": (80, 255, 80), "axes_length": 0.025},
@@ -570,6 +571,8 @@ def run_viewer(
     force_mode: str = "estimate",
     tactile_calibrate: bool = False,
     tactile_debug: bool = False,
+    sharpa_cfg=None,
+    force_render_controller: "RetargetForceRenderTeleop | None" = None,
 ) -> None:
 
     leader_urdf = ditto_leader_urdf(three_finger=ditto_3f)
@@ -615,7 +618,9 @@ def run_viewer(
     sharpa_retarget_targets: SharpaRetargetTargetViz | None = None
     retarget_error_markdown: viser.GuiMarkdownHandle | None = None
     live_retarget_enabled = {"value": True}
-    hardware_drive_enabled = {"value": hardware is not None}
+    hardware_drive_enabled = {
+        "value": hardware is not None or force_render_controller is not None
+    }
     sharpa_send_enabled = {"value": sharpa_follower is not None}
     force_viz_enabled = {"value": sharpa_follower is not None}
     force_viz_scale = {"value": FORCE_VIZ_DEFAULT_SCALE}
@@ -939,15 +944,32 @@ def run_viewer(
         robots.append(sharpa_robot)
 
     if show_leader and show_sharpa:
-        engine = RetargetTeleopEngine(
-            hardware=hardware,
-            sharpa_follower=sharpa_follower,
-            retargeter=DittoToSharpaRetargeter(ditto_urdf=leader_urdf),
-            fingers=retarget_fingers,
-        )
-        retargeter = engine.retargeter
+        if force_render_controller is not None:
+            engine = force_render_controller.engine
+            retargeter = engine.retargeter
+            sharpa_follower = engine.sharpa_follower
+            sharpa_send_enabled["value"] = sharpa_follower is not None
+            force_viz_enabled["value"] = sharpa_follower is not None
+            if sharpa_follower is not None and getattr(
+                sharpa_follower, "_tactile_ready", False
+            ):
+                tactile_ready["value"] = True
+            print(
+                "  Ditto leader: force-render loop running "
+                "(retarget + haptics on background thread)"
+            )
+        else:
+            engine = RetargetTeleopEngine(
+                hardware=hardware,
+                sharpa_follower=sharpa_follower,
+                retargeter=DittoToSharpaRetargeter.from_sharpa_config(
+                    sharpa_cfg, ditto_urdf=leader_urdf
+                ),
+                fingers=retarget_fingers,
+            )
+            retargeter = engine.retargeter
         assert sharpa_robot is not None and sharpa_ik is not None
-        if sharpa_follower is not None:
+        if force_render_controller is None and sharpa_follower is not None:
             print("Connecting Sharpa follower hardware...")
             try:
                 sharpa_follower.start(sharpa_ik.joint_q_index)
@@ -1014,6 +1036,113 @@ def run_viewer(
                     assert retargeter is not None
                     retargeter.middle_cartesian_scale = float(middle_scale_slider.value)
                     _retarget_ditto_to_sharpa(IK_POLISH)
+
+        if ditto_3f and retargeter is not None:
+
+            def _sync_ring_pinky_mirror_offsets() -> None:
+                assert retargeter is not None
+                if sharpa_follower is not None:
+                    sharpa_follower._ring_pinky_mirror_offsets = {
+                        finger: dict(offsets)
+                        for finger, offsets in retargeter.ring_pinky_mirror_offset_rad.items()
+                    }
+
+            def _finger_offsets(finger: str) -> dict[str, float]:
+                assert retargeter is not None
+                return dict(retargeter.ring_pinky_mirror_offset_rad.get(finger) or {})
+
+            with server.gui.add_folder("Ring mirror lag (rad)"):
+                ring_off = _finger_offsets("ring")
+                ring_mcp_fe = server.gui.add_slider(
+                    "MCP flex",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(ring_off.get("MCP_FE", 0.0)),
+                )
+                ring_pip = server.gui.add_slider(
+                    "PIP",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(ring_off.get("PIP", 0.0)),
+                )
+                ring_dip = server.gui.add_slider(
+                    "DIP",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(ring_off.get("DIP", 0.0)),
+                )
+                ring_aa = server.gui.add_slider(
+                    "MCP abduction",
+                    min=0.0,
+                    max=0.2,
+                    step=0.01,
+                    initial_value=float(ring_off.get("MCP_AA", 0.0)),
+                )
+
+            with server.gui.add_folder("Pinky mirror lag (rad)"):
+                pinky_off = _finger_offsets("pinky")
+                pinky_mcp_fe = server.gui.add_slider(
+                    "MCP flex",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(pinky_off.get("MCP_FE", 0.0)),
+                )
+                pinky_pip = server.gui.add_slider(
+                    "PIP",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(pinky_off.get("PIP", 0.0)),
+                )
+                pinky_dip = server.gui.add_slider(
+                    "DIP",
+                    min=0.0,
+                    max=0.4,
+                    step=0.01,
+                    initial_value=float(pinky_off.get("DIP", 0.0)),
+                )
+                pinky_aa = server.gui.add_slider(
+                    "MCP abduction",
+                    min=0.0,
+                    max=0.2,
+                    step=0.01,
+                    initial_value=float(pinky_off.get("MCP_AA", 0.0)),
+                )
+
+            def _on_mirror_lag_change(_: viser.GuiEvent) -> None:
+                assert retargeter is not None
+                retargeter.ring_pinky_mirror_offset_rad = {
+                    "ring": {
+                        "MCP_FE": float(ring_mcp_fe.value),
+                        "MCP_AA": float(ring_aa.value),
+                        "PIP": float(ring_pip.value),
+                        "DIP": float(ring_dip.value),
+                    },
+                    "pinky": {
+                        "MCP_FE": float(pinky_mcp_fe.value),
+                        "MCP_AA": float(pinky_aa.value),
+                        "PIP": float(pinky_pip.value),
+                        "DIP": float(pinky_dip.value),
+                    },
+                }
+                _sync_ring_pinky_mirror_offsets()
+                _retarget_ditto_to_sharpa(IK_POLISH)
+
+            for slider in (
+                ring_mcp_fe,
+                ring_pip,
+                ring_dip,
+                ring_aa,
+                pinky_mcp_fe,
+                pinky_pip,
+                pinky_dip,
+                pinky_aa,
+            ):
+                slider.on_update(_on_mirror_lag_change)
 
         with server.gui.add_folder("Retarget IK weights"):
             index_pos_weight_slider = server.gui.add_slider(
@@ -1118,18 +1247,38 @@ def run_viewer(
         print(f"  Ditto leader hardware: polling {port} (torque_off, no force feedback)")
         if not hardware.is_receiving:
             print("  Waiting for valid encoder reads (sliders/gizmos work meanwhile).")
+    elif force_render_controller is not None:
+        print("  Ditto leader hardware: current-mode force rendering (haptics active)")
     if sharpa_follower is not None:
         finger_desc = "index + middle + thumb" if ditto_3f else "index + thumb"
         print(f"  Sharpa follower: streaming retargeted {finger_desc} joints.")
     print("Press Ctrl+C to exit.")
 
-    needs_fast_poll = hardware is not None or sharpa_follower is not None
+    needs_fast_poll = (
+        hardware is not None
+        or sharpa_follower is not None
+        or force_render_controller is not None
+    )
     poll_interval = 1.0 / VIZ_HARDWARE_POLL_HZ if needs_fast_poll else VIZ_IDLE_POLL_S
     last_force_log = {"t": 0.0}
     last_force_viz = {"t": 0.0}
     last_hw_retarget = {"t": 0.0}
     try:
         while True:
+            if (
+                force_render_controller is not None
+                and ditto_robot is not None
+                and ditto_ik is not None
+            ):
+                _set_configuration_from_pin_q(
+                    ditto_robot, ditto_ik, force_render_controller.engine.ditto_q
+                )
+                if sharpa_robot is not None and sharpa_ik is not None:
+                    _set_configuration_from_pin_q(
+                        sharpa_robot,
+                        sharpa_ik,
+                        force_render_controller.engine.sharpa_q,
+                    )
             if (
                 hardware is not None
                 and hardware_drive_enabled["value"]
@@ -1171,7 +1320,7 @@ def run_viewer(
     finally:
         if hardware is not None:
             hardware.stop()
-        if sharpa_follower is not None:
+        if sharpa_follower is not None and force_render_controller is None:
             sharpa_follower.stop()
 
 

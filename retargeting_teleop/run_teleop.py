@@ -189,8 +189,9 @@ def main() -> None:
     engine = RetargetTeleopEngine(
         hardware=hardware,
         sharpa_follower=sharpa_follower,
-        retargeter=DittoToSharpaRetargeter(
-            ditto_urdf=ditto_leader_urdf(three_finger=flags.ditto_3f)
+        retargeter=DittoToSharpaRetargeter.from_sharpa_config(
+            cfg.get("sharpa"),
+            ditto_urdf=ditto_leader_urdf(kinematics_v2=True),
         ),
         fingers=fingers,
     )

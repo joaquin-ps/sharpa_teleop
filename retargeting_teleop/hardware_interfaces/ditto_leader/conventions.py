@@ -10,17 +10,14 @@ from retargeting.paths import (
     DITTO_INDEX_JOINT_NAMES,
     DITTO_LEADER_JOINT_NAMES,
     DITTO_LEADER_MOTOR_IDS,
-    DITTO_MIDDLE_JOINT_NAMES,
 )
 
-# Per-joint sign: hardware encoder + vs URDF + (index/middle joints negated).
-_NEGATED_JOINTS = frozenset((*DITTO_INDEX_JOINT_NAMES, *DITTO_MIDDLE_JOINT_NAMES))
-
-
+# Per-joint sign: hardware encoder + vs URDF +.
+# Canonical leader kinematics use ditto_3f_leader_v2 (+Z joint axes): no flip.
 def ditto_hardware_joint_signs(
     joint_names: tuple[str, ...],
 ) -> tuple[float, ...]:
-    return tuple(-1.0 if name in _NEGATED_JOINTS else 1.0 for name in joint_names)
+    return tuple(1.0 for _ in joint_names)
 
 
 DITTO_LEADER_HARDWARE_JOINT_SIGNS: tuple[float, ...] = ditto_hardware_joint_signs(

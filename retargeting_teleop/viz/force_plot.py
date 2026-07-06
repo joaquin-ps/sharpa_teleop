@@ -324,6 +324,8 @@ class ForceRenderPlotter:
         print(f"  Sharpa: {'on' if self.need_sharpa else 'off (no force)'}")
         modes_str = ", ".join(
             f"{f} (pos:{m['position']}, force:{m['force']})"
+            if isinstance(m["force"], dict)
+            else f"{f} (pos:{m['position']}, force:{m['force']})"
             for f, m in self.finger_modes.items()
         )
         print(f"  Per-finger mode: {modes_str}")

@@ -14,6 +14,8 @@ from collections.abc import Callable
 
 import numpy as np
 
+from retargeting.paths import RingPinkyMirrorOffsets, ring_pinky_mirrored_angle
+
 # Sharpa URDF joint name (retargeting) -> Sharpa SDK joint name (sharpa_controller).
 SHARPA_URDF_TO_SDK_JOINT: dict[str, str] = {
     "right_index_MCP_FE": "Index MCP Flexion/Extension",
@@ -41,6 +43,14 @@ SHARPA_MIDDLE_MIRROR_SDK_JOINTS: dict[str, str] = {
     "Pinky MCP Abduction/Adduction": "Middle MCP Abduction/Adduction",
     "Pinky PIP Flexion/Extension": "Middle PIP Flexion/Extension",
     "Pinky DIP Flexion/Extension": "Middle DIP Flexion/Extension",
+}
+
+# Middle SDK joint name -> mirror offset suffix (see ring_pinky_mirrored_angle).
+SHARPA_MIDDLE_SDK_MIRROR_SUFFIX: dict[str, str] = {
+    "Middle MCP Flexion/Extension": "MCP_FE",
+    "Middle MCP Abduction/Adduction": "MCP_AA",
+    "Middle PIP Flexion/Extension": "PIP",
+    "Middle DIP Flexion/Extension": "DIP",
 }
 
 # SDK joints with no retargeted URDF source (held fixed on hardware).
@@ -119,6 +129,7 @@ SHARPA_TACTILE_SENSOR_TO_LINK_RPY: dict[str, tuple[float, float, float]] = {
 def urdf_q_to_sdk_targets(
     sharpa_q: np.ndarray,
     q_index_of: Callable[[str], int],
+    ring_pinky_mirror_offsets: RingPinkyMirrorOffsets | None = None,
 ) -> dict[str, float]:
     """Convert a Sharpa URDF configuration vector to SDK joint targets (rad).
 
@@ -133,6 +144,10 @@ def urdf_q_to_sdk_targets(
             + SHARPA_URDF_TO_SDK_OFFSET_RAD[urdf_name]
         )
     for dst, src in SHARPA_MIDDLE_MIRROR_SDK_JOINTS.items():
-        targets[dst] = targets[src]
+        suffix = SHARPA_MIDDLE_SDK_MIRROR_SUFFIX[src]
+        finger = "ring" if dst.startswith("Ring ") else "pinky"
+        targets[dst] = ring_pinky_mirrored_angle(
+            targets[src], suffix, finger, ring_pinky_mirror_offsets
+        )
     targets.update(SHARPA_FOLLOWER_FIXED_SDK_TARGETS)
     return targets

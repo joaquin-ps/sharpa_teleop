@@ -43,7 +43,6 @@ from finger_aloha.utils.utils import precise_sleep  # noqa: E402
 
 from retargeting.ik_utils import IK_STREAM  # noqa: E402
 from hardware_interfaces.ditto_leader.conventions import (  # noqa: E402
-    DITTO_3F_LEADER_HARDWARE_JOINT_SIGNS,
     ditto_hardware_joint_signs,
     leader_joint_names_for_motor_ids,
 )
@@ -61,15 +60,17 @@ from retargeting.paths import (  # noqa: E402
 )
 from retargeting.retargeter import DittoToSharpaRetargeter  # noqa: E402
 from teleop.engine import RetargetTeleopEngine  # noqa: E402
-from teleop.force_sources import make_force_source_per_finger  # noqa: E402
+from teleop.force_sources import (  # noqa: E402
+    TactileForceSource,
+    TorqueEstimateForceSource,
+    make_force_source_per_finger,
+)
 
 if TYPE_CHECKING:
     from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
 _MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
-_JOINT_SIGN = dict(
-    zip(DITTO_3F_LEADER_JOINT_NAMES, DITTO_3F_LEADER_HARDWARE_JOINT_SIGNS, strict=True)
-)
+_JOINT_TO_MOTOR = {joint: motor for motor, joint in _MOTOR_TO_JOINT.items()}
 _JOINT_TO_FINGER = {
     **{name: "index" for name in DITTO_INDEX_JOINT_NAMES},
     **{name: "middle" for name in DITTO_MIDDLE_JOINT_NAMES},
@@ -95,33 +96,104 @@ _FINGER_MODE_SHORTCUTS = {
     "joint": {"position": "joint", "force": "measured"},
 }
 _VALID_POSITIONS = ("retarget", "joint")
-_VALID_FORCES = ("measured", "estimate", "tactile", "mix")
+_VALID_FORCE_MODALITIES = ("measured", "estimate", "tactile")
 # Task-space contact sources (everything except the direct joint-current path).
 _SOURCE_FORCES = ("estimate", "tactile", "mix")
-_TACTILE_FORCES = ("tactile", "mix")
+_TASK_SPACE_MODALITIES = ("estimate", "tactile")
 
 
-def _normalize_finger_mode(finger: str, spec) -> dict[str, str]:
-    """Expand a control.fingers entry (shortcut or dict) to {position, force}."""
+def _normalize_force_spec(force_spec) -> dict[str, float]:
+    """Expand force config to ``{modality: weight}`` (weights sum to 1).
+
+    Accepts a shortcut string (``estimate`` | ``tactile`` | ``measured`` | ``mix``),
+    or a weighted dict (``{tactile: 0.5, measured: 0.5}``).
+    """
+    if isinstance(force_spec, str):
+        if force_spec == "mix":
+            return {"estimate": 0.5, "tactile": 0.5}
+        if force_spec not in (*_VALID_FORCE_MODALITIES, "mix"):
+            raise ValueError(
+                f"force={force_spec!r} (expected one of "
+                f"{list(_VALID_FORCE_MODALITIES)} | mix | a weight dict)"
+            )
+        return {force_spec: 1.0}
+    if hasattr(force_spec, "items"):
+        weights = {str(k): float(v) for k, v in force_spec.items()}
+        unknown = set(weights) - set(_VALID_FORCE_MODALITIES)
+        if unknown:
+            raise ValueError(
+                f"Unknown force modalities {sorted(unknown)} "
+                f"(expected {list(_VALID_FORCE_MODALITIES)})"
+            )
+        total = sum(weights.values())
+        if total <= 0.0:
+            raise ValueError("Force blend weights must sum to a positive value")
+        return {k: v / total for k, v in weights.items()}
+    raise ValueError(
+        f"force must be a modality string or a weight dict, got {type(force_spec)!r}"
+    )
+
+
+def _normalize_finger_mode(finger: str, spec) -> dict:
+    """Expand a control.fingers entry to {position, force: {modality: weight}}."""
     if isinstance(spec, str):
         if spec not in _FINGER_MODE_SHORTCUTS:
             raise ValueError(
                 f"control.fingers.{finger}={spec!r} (expected one of "
                 f"{list(_FINGER_MODE_SHORTCUTS)} or a {{position, force}} mapping)"
             )
-        return dict(_FINGER_MODE_SHORTCUTS[spec])
+        shortcut = dict(_FINGER_MODE_SHORTCUTS[spec])
+        return {
+            "position": shortcut["position"],
+            "force": _normalize_force_spec(shortcut["force"]),
+        }
     position = str(spec.get("position", "retarget"))
-    force = str(spec.get("force", "estimate"))
     if position not in _VALID_POSITIONS:
         raise ValueError(
             f"control.fingers.{finger}.position={position!r} "
             f"(expected {list(_VALID_POSITIONS)})"
         )
-    if force not in _VALID_FORCES:
-        raise ValueError(
-            f"control.fingers.{finger}.force={force!r} (expected {list(_VALID_FORCES)})"
-        )
-    return {"position": position, "force": force}
+    force_raw = spec.get("force", "estimate")
+    return {"position": position, "force": _normalize_force_spec(force_raw)}
+
+
+def _finger_uses_modality(force_weights: dict[str, float], modality: str) -> bool:
+    return float(force_weights.get(modality, 0.0)) > 0.0
+
+
+def _finger_uses_task_space(force_weights: dict[str, float]) -> bool:
+    return any(_finger_uses_modality(force_weights, m) for m in _TASK_SPACE_MODALITIES)
+
+
+def config_needs_tactile(config: DictConfig) -> bool:
+    """True if any finger's force blend includes tactile."""
+    return any(
+        _finger_uses_modality(m["force"], "tactile")
+        for m in finger_modes_from_config(config).values()
+    )
+
+
+def viewer_initial_source(config: DictConfig) -> str:
+    """Best-effort single source for the viewer's initial dropdown value."""
+    modes: set[str] = set()
+    for m in finger_modes_from_config(config).values():
+        fw = m["force"]
+        if len(fw) > 1:
+            if _finger_uses_modality(fw, "tactile") and _finger_uses_modality(
+                fw, "estimate"
+            ):
+                modes.add("mix")
+            elif _finger_uses_modality(fw, "tactile"):
+                modes.add("tactile")
+            else:
+                modes.add("estimate")
+        else:
+            modes.add(next(iter(fw)))
+    if "mix" in modes:
+        return "mix"
+    if "tactile" in modes:
+        return "tactile"
+    return "estimate"
 
 
 def leader_fingers_from_config(config: DictConfig) -> tuple[str, ...]:
@@ -134,11 +206,8 @@ def leader_fingers_from_config(config: DictConfig) -> tuple[str, ...]:
     return tuple(fingers)
 
 
-def finger_modes_from_config(config: DictConfig) -> dict[str, dict[str, str]]:
-    """Read hand_config.control.fingers → {finger: {position, force}}.
-
-    Fingers absent from the config default to the ``retarget`` shortcut.
-    """
+def finger_modes_from_config(config: DictConfig) -> dict[str, dict]:
+    """Read hand_config.control.fingers → {finger: {position, force: {mod: w}}}."""
     control = config.hand_config.get("control") or {}
     fingers_cfg = control.get("fingers") or {}
     return {
@@ -147,26 +216,21 @@ def finger_modes_from_config(config: DictConfig) -> dict[str, dict[str, str]]:
     }
 
 
-def config_needs_tactile(config: DictConfig) -> bool:
-    """True if any finger's force source needs the tactile sensors."""
-    return any(
-        m["force"] in _TACTILE_FORCES
-        for m in finger_modes_from_config(config).values()
-    )
-
-
-def viewer_initial_source(config: DictConfig) -> str:
-    """Best-effort single source for the viewer's initial dropdown value."""
-    forces = {
-        m["force"]
-        for m in finger_modes_from_config(config).values()
-        if m["force"] in _SOURCE_FORCES
-    }
-    if "mix" in forces:
+def _single_task_space_source_mode(force_weights: dict[str, float]) -> str | None:
+    """Task-space source name when a finger uses exactly one estimate/tactile/mix mode."""
+    if len(force_weights) != 1:
+        return None
+    only = next(iter(force_weights))
+    if only in _TASK_SPACE_MODALITIES:
+        return only
+    if only == "mix":
         return "mix"
-    if "tactile" in forces:
-        return "tactile"
-    return "estimate"
+    return None
+
+
+def is_force_render_config(config: DictConfig) -> bool:
+    """True if the hand_config drives the leader in current (haptic) mode."""
+    return str(config.hand_config.leader.mode) == "current"
 
 
 # finger_aloha's force_rendering law applies *negative* feedback
@@ -228,14 +292,24 @@ class RetargetForceRenderTeleop:
             )
         self.leader_chain = list(leader_cfg.motor_ids)
         self._validate_leader_motors()
+        _chain_joint_names = leader_joint_names_for_motor_ids(self.leader_chain)
+        self._joint_sign = dict(
+            zip(
+                _chain_joint_names,
+                ditto_hardware_joint_signs(_chain_joint_names),
+                strict=True,
+            )
+        )
 
         # Per-finger control mode (position + force source) lives entirely in
         # hand_config.control.fingers (see finger_modes_from_config). Two
         # independent axes per finger:
         #   position: "retarget" (IK) | "joint" (direct leader→Sharpa joint map)
-        #   force:    "measured" (Sharpa joint current, joint_teleop style)
-        #           | "estimate" | "tactile" | "mix"  (task-space contact source)
+        #   force:    weighted blend of measured | estimate | tactile (sums to 1)
         self._finger_modes = finger_modes_from_config(config)
+        self._finger_force_weights = {
+            f: dict(m["force"]) for f, m in self._finger_modes.items()
+        }
         all_fingers = tuple(self._finger_modes)
         self._position_joint_fingers = tuple(
             f for f in all_fingers if self._finger_modes[f]["position"] == "joint"
@@ -244,27 +318,31 @@ class RetargetForceRenderTeleop:
             f for f in all_fingers if self._finger_modes[f]["position"] == "retarget"
         )
         self._force_measured_fingers = tuple(
-            f for f in all_fingers if self._finger_modes[f]["force"] == "measured"
+            f
+            for f, w in self._finger_force_weights.items()
+            if _finger_uses_modality(w, "measured")
         )
-        self._force_source_fingers = tuple(
-            f for f in all_fingers if self._finger_modes[f]["force"] in _SOURCE_FORCES
+        self._force_task_space_fingers = tuple(
+            f
+            for f, w in self._finger_force_weights.items()
+            if _finger_uses_task_space(w)
         )
-        # finger -> task-space source mode (estimate | tactile | mix).
+        # Legacy viewer path: single task-space modality per finger only.
         self._finger_source_modes = {
-            f: self._finger_modes[f]["force"] for f in self._force_source_fingers
+            f: mode
+            for f, w in self._finger_force_weights.items()
+            if (mode := _single_task_space_source_mode(w)) is not None
         }
-        # finger -> [(ditto_joint, sharpa_urdf_joint, scale)] for fingers that need
-        # a direct joint map: joint-position and/or measured-force fingers.
+        # finger -> [(ditto_joint, sharpa_urdf_joint, scale)] for measured force.
         self._joint_map = self._parse_joint_map()
 
-        # The engine retargets (IK) only the retarget-position fingers.
-        # Middle joints live on the 3-finger Ditto URDF only.
-        use_3f_urdf = "middle" in all_fingers
+        # Middle joints live on the 3-finger Ditto URDF; v2 kinematics for all hardware.
         self.engine = RetargetTeleopEngine(
             sharpa_follower=sharpa_follower,
             fingers=self._position_retarget_fingers,
-            retargeter=DittoToSharpaRetargeter(
-                ditto_urdf=ditto_leader_urdf(three_finger=use_3f_urdf)
+            retargeter=DittoToSharpaRetargeter.from_sharpa_config(
+                self.config.get("sharpa"),
+                ditto_urdf=ditto_leader_urdf(kinematics_v2=True),
             ),
         )
         self.sharpa_follower = sharpa_follower
@@ -278,18 +356,25 @@ class RetargetForceRenderTeleop:
             else bool(tactile_calibrate)
         )
         self.tactile_debug = bool(fr_cfg.get("debug", False))
-        self._needs_tactile = any(
-            m in _TACTILE_FORCES for m in self._finger_source_modes.values()
-        )
+        self._needs_tactile = config_needs_tactile(config)
         self.engine.force_source = self._make_force_source()
+        self._estimate_source = TorqueEstimateForceSource(
+            self.engine.sharpa_ik, all_fingers
+        )
+        self._tactile_source = TactileForceSource(
+            self.engine.sharpa_ik, all_fingers, debug=self.tactile_debug
+        )
 
         self.leader_hand = None
         self.current_controller = CurrentController()
         self.leader_control_params = self._create_leader_control_params()
         self._torque_to_mA, self._torque_filter_alpha = self._parse_force_mapping()
+        self._modality_filter_alpha = self._parse_modality_filters()
 
         self._cached_torques: dict[str, float] = {}
         self._filtered_torque_nm: dict[int, float] = {}
+        self._filtered_torque_by_modality: dict[tuple[str, str], float] = {}
+        self._rate_limited_command_mA: dict[int, float] = {}
         self.running = False
         # Shared with the retarget worker thread. The fast loop publishes the
         # latest leader read here; the worker consumes it for IK + force estimate
@@ -313,8 +398,9 @@ class RetargetForceRenderTeleop:
                 )
 
     def _make_force_source(self):
-        # Only task-space fingers (estimate / tactile / mix) need a force source;
-        # measured-force fingers read the Sharpa joint current directly.
+        # Viewer / single-modality path only; blended fingers use _compute_cached_torques.
+        if not self._finger_source_modes:
+            return TorqueEstimateForceSource(self.engine.sharpa_ik, ())
         return make_force_source_per_finger(
             self.engine.sharpa_ik,
             self._finger_source_modes,
@@ -322,14 +408,8 @@ class RetargetForceRenderTeleop:
         )
 
     def _parse_joint_map(self) -> dict[str, list[tuple[str, str, float]]]:
-        """Read hand_config.control.joint_map for fingers that need a direct map.
-
-        A map is required for joint-position fingers (drives Sharpa) and/or
-        measured-force fingers (maps Sharpa joint torque → leader joint, and the
-        ``scale`` sign flips the rendered force). Returns finger ->
-        [(ditto_joint, sharpa_urdf_joint, scale)].
-        """
-        needs_map = set(self._position_joint_fingers) | set(self._force_measured_fingers)
+        """Read control.joint_map for fingers that use measured force."""
+        needs_map = set(self._force_measured_fingers) | set(self._position_joint_fingers)
         control = self.config.hand_config.get("control") or {}
         joint_map_cfg = control.get("joint_map") or {}
         joint_map: dict[str, list[tuple[str, str, float]]] = {}
@@ -373,6 +453,9 @@ class RetargetForceRenderTeleop:
                     f"  Leader motor {motor_id}: force_rendering="
                     f"{params.enable_force_rendering}, gain={params.force_rendering_gain}, "
                     f"alpha={params.force_rendering_alpha}, "
+                    f"adaptive_gain={params.enable_force_rendering_adaptive_gain}"
+                    f"(c={params.force_rendering_adaptive_velocity_coeff}), "
+                    f"rate_limit={params.command_rate_limit_mA_per_s} mA/s, "
                     f"damping_gain={params.force_rendering_damping_gain}"
                 )
         return params_list
@@ -393,6 +476,33 @@ class RetargetForceRenderTeleop:
                     entry.get("torque_filter_alpha", 1.0)
                 )
         return torque_to_mA, torque_filter_alpha
+
+    def _parse_modality_filters(self) -> dict[tuple[int, str], float]:
+        """Per (motor, modality) input EMA alpha applied before force blending."""
+        fr_cfg = self.config.hand_config.get("force_render") or {}
+        defaults = {
+            str(k): float(v.get("torque_filter_alpha", 1.0))
+            for k, v in (fr_cfg.get("modality_filters") or {}).items()
+        }
+        alpha: dict[tuple[int, str], float] = {}
+        for motor in self.leader_chain:
+            for modality in _VALID_FORCE_MODALITIES:
+                alpha[(motor, modality)] = defaults.get(modality, 1.0)
+        entries = fr_cfg.get("joints") or []
+        for entry in entries:
+            motor = int(entry["motor_id"])
+            per_mod = entry.get("modality_filters") or {}
+            for modality, cfg in per_mod.items():
+                modality = str(modality)
+                if modality not in _VALID_FORCE_MODALITIES:
+                    continue
+                if isinstance(cfg, (dict, DictConfig)):
+                    alpha[(motor, modality)] = float(
+                        cfg.get("torque_filter_alpha", alpha[(motor, modality)])
+                    )
+                else:
+                    alpha[(motor, modality)] = float(cfg)
+        return alpha
 
     def _get_u2d2_port_baud(self) -> tuple[str, int]:
         u2d2_config = self.config.u2d2
@@ -420,8 +530,9 @@ class RetargetForceRenderTeleop:
                 )
                 if not ok:
                     tactile_fingers = [
-                        f for f, m in self._finger_source_modes.items()
-                        if m in _TACTILE_FORCES
+                        f
+                        for f, w in self._finger_force_weights.items()
+                        if _finger_uses_modality(w, "tactile")
                     ]
                     raise RuntimeError(
                         f"tactile force source on {tactile_fingers} needs tactile "
@@ -471,28 +582,86 @@ class RetargetForceRenderTeleop:
                 angle = float(ditto_q[ditto_idx(ditto_joint)])
                 self.engine.sharpa_q[sharpa_idx(sharpa_joint)] = scale * angle
 
-    def _measured_joint_torques(self) -> dict[str, float]:
-        """Measured-force fingers: measured Sharpa joint torque → leader joint (Nm).
-
-        Direct joint-current feedback (joint_teleop style), keyed by Ditto joint
-        name so the fast loop's current synthesis treats it like any cached torque.
-        The joint_map ``scale`` maps torque (τ_ditto = scale·τ_sharpa); its sign
-        flips the rendered force (independent of how position is driven).
-        """
-        if self.sharpa_follower is None or not self._force_measured_fingers:
+    def _measured_torques_for_finger(self, finger: str) -> dict[str, float]:
+        """Measured Sharpa joint torque → Ditto leader joint (Nm) for one finger."""
+        if self.sharpa_follower is None or finger not in self._joint_map:
             return {}
         inputs = self.sharpa_follower.read_wrench_inputs(self.engine.sharpa_q)
         if inputs is None:
             return {}
         _, finger_torques = inputs
+        taus = finger_torques.get(finger)
+        if taus is None:
+            return {}
+        names = _SHARPA_FINGER_JOINTS[finger]
         torques: dict[str, float] = {}
-        for finger in self._force_measured_fingers:
-            taus = finger_torques.get(finger)
-            if taus is None:
-                continue
-            names = _SHARPA_FINGER_JOINTS[finger]
-            for ditto_joint, sharpa_joint, scale in self._joint_map[finger]:
-                torques[ditto_joint] = scale * float(taus[names.index(sharpa_joint)])
+        for ditto_joint, sharpa_joint, scale in self._joint_map[finger]:
+            torques[ditto_joint] = scale * float(taus[names.index(sharpa_joint)])
+        return torques
+
+    def _task_space_torques_for_finger(
+        self, finger: str, modality: str, ditto_q: np.ndarray
+    ) -> dict[str, float]:
+        """Task-space pad force → leader joint torques (Nm) for one finger/modality."""
+        if self.sharpa_follower is None:
+            return {}
+        if modality == "estimate":
+            source = self._estimate_source
+        elif modality == "tactile":
+            source = self._tactile_source
+        else:
+            return {}
+        read = source.read(self.sharpa_follower, self.engine.sharpa_q)
+        if read is None:
+            return {}
+        q_meas, force_by_finger = read
+        force = force_by_finger.get(finger)
+        if force is None:
+            return {}
+        fb = self.engine.retargeter.leader_force_and_torque(
+            finger, force, q_meas, ditto_q
+        )
+        return {name: float(tau) for name, tau in zip(fb.joint_names, fb.joint_torques)}
+
+    def _filter_modality_joint_torques(
+        self, raw: dict[str, float], modality: str
+    ) -> dict[str, float]:
+        """Per-modality input EMA on leader joint torques (before weighted blend)."""
+        filtered: dict[str, float] = {}
+        for ditto_joint, tau in raw.items():
+            motor = _JOINT_TO_MOTOR.get(ditto_joint)
+            alpha = 1.0 if motor is None else self._modality_filter_alpha.get(
+                (motor, modality), 1.0
+            )
+            key = (ditto_joint, modality)
+            prev = self._filtered_torque_by_modality.get(key)
+            tau_f = (
+                tau
+                if alpha >= 1.0 or prev is None
+                else alpha * tau + (1.0 - alpha) * prev
+            )
+            self._filtered_torque_by_modality[key] = tau_f
+            filtered[ditto_joint] = tau_f
+        return filtered
+
+    def _compute_cached_torques(self, ditto_q: np.ndarray) -> dict[str, float]:
+        """Blend per-modality leader torques (Nm) after scaling and input filtering."""
+        torques: dict[str, float] = {}
+        for finger, weights in self._finger_force_weights.items():
+            joint_blend: dict[str, float] = {}
+            for modality, weight in weights.items():
+                if weight <= 0.0:
+                    continue
+                if modality == "measured":
+                    raw = self._measured_torques_for_finger(finger)
+                elif modality in _TASK_SPACE_MODALITIES:
+                    raw = self._task_space_torques_for_finger(finger, modality, ditto_q)
+                else:
+                    continue
+                filtered = self._filter_modality_joint_torques(raw, modality)
+                for joint, tau in filtered.items():
+                    joint_blend[joint] = joint_blend.get(joint, 0.0) + weight * tau
+            torques.update(joint_blend)
         return torques
 
     def _build_follower_currents(
@@ -507,7 +676,7 @@ class RetargetForceRenderTeleop:
 
         for i, motor in enumerate(self.leader_chain):
             joint = _MOTOR_TO_JOINT[motor]
-            sign = _JOINT_SIGN[joint]
+            sign = self._joint_sign[joint]
             tau = float(self._cached_torques.get(joint, 0.0))  # Nm, URDF convention
 
             alpha = self._torque_filter_alpha[motor]
@@ -545,6 +714,28 @@ class RetargetForceRenderTeleop:
             "synth_filt": synth_filt,
         }
         return follower, series
+
+    def _apply_command_rate_limit(self, commands: list[float]) -> list[float]:
+        """Cap rising |I| on the net leader current; drops pass through immediately.
+
+        Smooths contact onset (force magnitude ramping up) while keeping release
+        responsive when tactile force falls or contact breaks.
+        """
+        limited: list[float] = []
+        for i, motor in enumerate(self.leader_chain):
+            cmd = float(commands[i])
+            rate = self.leader_control_params[i].command_rate_limit_mA_per_s
+            if rate > 0.0:
+                prev = self._rate_limited_command_mA.get(motor)
+                if prev is not None:
+                    step = rate * self.dt
+                    prev_abs = abs(prev)
+                    cmd_abs = abs(cmd)
+                    if cmd_abs > prev_abs:
+                        cmd = float(np.copysign(min(cmd_abs, prev_abs + step), cmd))
+                self._rate_limited_command_mA[motor] = cmd
+            limited.append(cmd)
+        return limited
 
     def _queue_states(
         self,
@@ -600,6 +791,7 @@ class RetargetForceRenderTeleop:
             follower_motor_data,
             self.show_current_breakdown,
         )
+        current_commands = self._apply_command_rate_limit(current_commands)
         damping_cmds = self.current_controller.last_force_rendering_damping_cmds
         force_cmds = self.current_controller.last_force_rendering_cmds
         self._queue_states(
@@ -645,7 +837,6 @@ class RetargetForceRenderTeleop:
             if leader_motor_data is not None:
                 ditto_q = self._ditto_q_from_leader(leader_motor_data)
                 self.engine.ditto_q = ditto_q
-                torques: dict[str, float] = {}
 
                 # --- Position ---
                 # Joint-position fingers: direct joint map every cycle (cheap).
@@ -665,19 +856,11 @@ class RetargetForceRenderTeleop:
                 if self.sharpa_follower is not None:
                     self.sharpa_follower.send_q(self.engine.sharpa_q)
 
-                # --- Force --- (measured applied last so it wins on any overlap)
-                # Source-force fingers: estimate / tactile → leader torques.
-                if self._force_source_fingers:
+                # --- Force --- (per-modality filter → weighted blend in Nm)
+                if self.sharpa_follower is not None:
                     t_est = time.perf_counter()
-                    sample = self.engine.estimate_force_feedback()
-                    if sample is not None:
-                        torques.update(sample.leader_torques)
+                    self._cached_torques = self._compute_cached_torques(ditto_q)
                     w_est += time.perf_counter() - t_est
-                # Measured-force fingers: measured Sharpa joint current (cheap).
-                if self._force_measured_fingers:
-                    torques.update(self._measured_joint_torques())
-
-                self._cached_torques = torques
 
             w_n += 1
             if w_n >= report_every:
@@ -714,11 +897,12 @@ class RetargetForceRenderTeleop:
         """Human-readable position + force description for one finger."""
         mode = self._finger_modes[finger]
         position = "retarget IK" if mode["position"] == "retarget" else "direct joint map"
-        force = mode["force"]
-        if force == "measured":
-            force_desc = "measured Sharpa joint current"
-        else:
-            force_desc = f"{force} (task-space contact → Jᵀ)"
+        weights = self._finger_force_weights[finger]
+        parts = [
+            f"{modality} {weight:.0%}"
+            for modality, weight in sorted(weights.items())
+        ]
+        force_desc = "blend: " + ", ".join(parts)
         return f"position: {position:<16s} force: {force_desc}"
 
     def _print_mode_summary(self) -> None:

@@ -21,6 +21,8 @@ from .paths import (
     SHARPA_RETARGET_BASE_LINK,
     SHARPA_RIGHT_URDF,
     mirror_sharpa_middle_to_ring_pinky,
+    parse_ring_pinky_mirror_offsets,
+    RingPinkyMirrorOffsets,
 )
 from .sharpa_ik import SharpaFingerIK
 
@@ -77,10 +79,11 @@ class DittoToSharpaRetargeter:
         middle_position_weight: float = 1.5,
         middle_orientation_weight: float = 0.1,
         thumb_position_weight: float = 1.5,
-        thumb_orientation_weight: float = 0.05,
+        thumb_orientation_weight: float = 0.1,
         index_cartesian_scale: float = 1.3,
-        middle_cartesian_scale: float = 1.25,
-        thumb_cartesian_scale: float = 1.3,
+        middle_cartesian_scale: float = 1.3,
+        thumb_cartesian_scale: float = 1.2,
+        ring_pinky_mirror_offset_rad: RingPinkyMirrorOffsets | None = None,
     ) -> None:
         self.ditto = DittoFingerIK(ditto_urdf)
         self.sharpa = SharpaFingerIK(sharpa_urdf)
@@ -93,6 +96,31 @@ class DittoToSharpaRetargeter:
         self.index_cartesian_scale = index_cartesian_scale
         self.middle_cartesian_scale = middle_cartesian_scale
         self.thumb_cartesian_scale = thumb_cartesian_scale
+        self.ring_pinky_mirror_offset_rad = parse_ring_pinky_mirror_offsets(
+            ring_pinky_mirror_offset_rad
+        )
+
+    @classmethod
+    def from_sharpa_config(
+        cls,
+        sharpa_cfg,
+        *,
+        ditto_urdf: Path = DITTO_LEADER_URDF,
+        sharpa_urdf: Path = SHARPA_RIGHT_URDF,
+        **kwargs,
+    ) -> "DittoToSharpaRetargeter":
+        """Build a retargeter, reading ring/pinky mirror offsets from Hydra config."""
+        offsets = parse_ring_pinky_mirror_offsets(
+            sharpa_cfg.get("ring_pinky_mirror_offset_rad")
+            if sharpa_cfg is not None
+            else None
+        )
+        return cls(
+            ditto_urdf=ditto_urdf,
+            sharpa_urdf=sharpa_urdf,
+            ring_pinky_mirror_offset_rad=offsets,
+            **kwargs,
+        )
 
     def _ditto_has_finger(self, finger: FingerName) -> bool:
         return self.ditto.model.existFrame(_DITTO_PADS[finger])
@@ -235,7 +263,9 @@ class DittoToSharpaRetargeter:
                 residual[finger] = 0.0
             achieved[finger] = self.sharpa.pad_pose_in_base(q, finger)
 
-        mirror_sharpa_middle_to_ring_pinky(q, self.sharpa.joint_q_index)
+        mirror_sharpa_middle_to_ring_pinky(
+            q, self.sharpa.joint_q_index, self.ring_pinky_mirror_offset_rad
+        )
 
         return RetargetResult(
             sharpa_q=q,
