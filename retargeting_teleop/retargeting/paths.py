@@ -21,7 +21,7 @@ DITTO_3F_LEADER_URDF = DITTO_3F_LEADER_DIR / "ditto_3f_leader_v2.urdf"
 DITTO_3F_LEADER_V1_URDF = DITTO_3F_LEADER_V1_DIR / "ditto_3f_leader.urdf"
 SHARPA_RIGHT_URDF = SHARPA_RIGHT_DIR / "right_sharpa_wave.urdf"
 
-# Actuated joints on the Ditto leader (matches finger_aloha motor mapping).
+# Actuated joints on the Ditto leader (matches ditto motor mapping).
 DITTO_LEADER_JOINT_NAMES: tuple[str, ...] = (
     "index_joint_0",
     "index_joint_1",

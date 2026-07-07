@@ -1,6 +1,6 @@
-[submodule "finger_aloha"]
-	path = finger_aloha
-	url = git@github.com:roamlab/finger_aloha.git
+[submodule "ditto"]
+	path = ditto
+	url = git@github.com:roamlab/ditto.git
 	branch = sharpa
 [submodule "sharpa_controller"]
 	path = sharpa_controller

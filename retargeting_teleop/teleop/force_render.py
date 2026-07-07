@@ -7,7 +7,7 @@ Bilateral loop for the Ditto **index** finger:
 3. read Sharpa contact torque → estimate pad force → map to *estimated Ditto
    joint torque* via ``Jᵀ`` (the "follower" signal)
 4. turn that estimated joint torque into a synthetic follower current and feed it
-   through finger_aloha's ``CurrentController`` force rendering → leader current
+   through ditto's ``CurrentController`` force rendering → leader current
 
 This mirrors ``joint_teleop``'s force-rendering pipeline, but the follower signal
 is our model-based estimate rather than a directly-mapped Sharpa joint. The
@@ -30,16 +30,16 @@ from _paths import setup_import_paths
 
 setup_import_paths()
 
-from finger_aloha.hand_interfaces.src.current_control import (  # noqa: E402
+from ditto.hand_interfaces.src.current_control import (  # noqa: E402
     ControlParams,
     CurrentController,
     create_control_params_from_config,
 )
-from finger_aloha.hand_interfaces.src.hand_interface import (  # noqa: E402
+from ditto.hand_interfaces.src.hand_interface import (  # noqa: E402
     create_hand_interface,
 )
-from finger_aloha.hand_interfaces.src.motor_data import MotorData  # noqa: E402
-from finger_aloha.utils.utils import precise_sleep  # noqa: E402
+from ditto.hand_interfaces.src.motor_data import MotorData  # noqa: E402
+from ditto.utils.utils import precise_sleep  # noqa: E402
 
 from retargeting.ik_utils import IK_STREAM  # noqa: E402
 from hardware_interfaces.ditto_leader.conventions import (  # noqa: E402
@@ -233,7 +233,7 @@ def is_force_render_config(config: DictConfig) -> bool:
     return str(config.hand_config.leader.mode) == "current"
 
 
-# finger_aloha's force_rendering law applies *negative* feedback
+# ditto's force_rendering law applies *negative* feedback
 # (-k·follower_current), which is tuned for joint_teleop where the follower
 # signal is a directly-measured follower torque. Here the follower signal is the
 # estimated leader joint torque we want to *reproduce* (τ = Jᵀ·F, the contact

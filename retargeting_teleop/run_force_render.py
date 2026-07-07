@@ -55,7 +55,7 @@ for _path in (_PKG, _REPO):
 
 from hydra import compose, initialize_config_dir  # noqa: E402
 
-from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from _paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from teleop.force_render import (  # noqa: E402
     RetargetForceRenderTeleop,
     config_needs_tactile,
@@ -89,7 +89,7 @@ def _strip_run_flags() -> RunFlags:
 
 
 def _build_overrides(cli_args: list[str]) -> list[str]:
-    searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
+    searchpath = f"hydra.searchpath=[file://{DITTO_CONF_DIR}]"
     overrides = [searchpath]
     if not any(arg.startswith("hand_config=") for arg in cli_args):
         overrides.append(f"hand_config={DEFAULT_HAND_CONFIG}")

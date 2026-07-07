@@ -55,7 +55,7 @@ def hardware_joint_angles_to_urdf(
     angles: np.ndarray,
     joint_names: tuple[str, ...] = DITTO_LEADER_JOINT_NAMES,
 ) -> np.ndarray:
-    """Map finger_aloha leader joint angles (rad) to Ditto URDF ``q`` convention."""
+    """Map ditto leader joint angles (rad) to Ditto URDF ``q`` convention."""
     q = np.asarray(angles, dtype=float)
     if q.shape[0] != len(joint_names):
         raise ValueError(

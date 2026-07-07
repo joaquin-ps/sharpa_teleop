@@ -36,12 +36,12 @@ import numpy as np
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 
-from joint_teleop._paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from joint_teleop._paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from joint_teleop.sharpa_ditto_teleop import SharpaDittoTeleop  # noqa: E402
 
 
 def _build_overrides(cli_args: list[str]) -> list[str]:
-    searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
+    searchpath = f"hydra.searchpath=[file://{DITTO_CONF_DIR}]"
     return [searchpath] + list(cli_args)
 
 

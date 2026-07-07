@@ -1,4 +1,4 @@
-"""Ditto leader hardware (finger_aloha → URDF joint angles)."""
+"""Ditto leader hardware (ditto → URDF joint angles)."""
 
 from .conventions import (
     DITTO_LEADER_HARDWARE_JOINT_SIGNS,

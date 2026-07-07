@@ -1,4 +1,4 @@
-"""Sharpa + Dynamixel teleoperation (combines sharpa_controller and finger_aloha)."""
+"""Sharpa + Dynamixel teleoperation (combines sharpa_controller and ditto)."""
 
 from .sharpa_ditto_teleop import JointPair, SharpaDittoTeleop
 

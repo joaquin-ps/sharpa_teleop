@@ -117,7 +117,7 @@ SHARPA_DEFAULT_MOUNT_POSITION = (0.0, 0.12, 0.0)
 VIZ_IDLE_POLL_S = 1.0
 VIZ_HARDWARE_POLL_HZ = 60.0
 # Decoupled rate for the expensive retarget IK under live hardware, so it does
-# not starve the 200 Hz finger_aloha read thread (shared GIL).
+# not starve the 200 Hz ditto read thread (shared GIL).
 HW_RETARGET_HZ = 40.0
 
 

@@ -1,6 +1,6 @@
 # 🤖 Sharpa Teleop
 
-Two teleop stacks sharing `finger_aloha` (Dynamixel leader) and `sharpa_controller` (Sharpa Wave):
+Two teleop stacks sharing `ditto` (Dynamixel leader) and `sharpa_controller` (Sharpa Wave):
 
 | Package | What it does |
 |---------|----------------|
@@ -71,9 +71,9 @@ print('retarget ok', r.retarget(np.zeros(7), np.zeros(22)).index_residual)
 python -c "
 import sys; sys.path.insert(0, '.')
 from hydra import compose, initialize_config_dir
-from joint_teleop._paths import CONF_DIR, FA_CONF_DIR
+from joint_teleop._paths import CONF_DIR, DITTO_CONF_DIR
 with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
-    cfg = compose(config_name='config', overrides=[f'hydra.searchpath=[file://{FA_CONF_DIR}]'])
+    cfg = compose(config_name='config', overrides=[f'hydra.searchpath=[file://{DITTO_CONF_DIR}]'])
 print('joint teleop config ok', cfg.hand_config.leader.mode)
 "
 ```
@@ -135,7 +135,7 @@ See **[retargeting_teleop/RETARGETING_TELEOP.md](retargeting_teleop/RETARGETING_
 
 ```
 sharpa_teleop/                      # this repo
-├── finger_aloha/                   # submodule (Dynamixel leader)
+├── ditto/                   # submodule (Dynamixel leader)
 ├── sharpa_controller/              # submodule (Sharpa Wave)
 ├── joint_teleop/                   # direct joint teleop
 │   ├── conf/

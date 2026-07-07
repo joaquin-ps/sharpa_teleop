@@ -2,7 +2,7 @@
 """Headless Ditto → Sharpa retargeting teleop (no Viser viewer).
 
 Runs the same core loop as ``viz/view_teleop.py`` without Viser/IK on the main
-thread. Ditto encoder reads still run in a background finger_aloha thread at
+thread. Ditto encoder reads still run in a background ditto thread at
 ``hand_config.control_frequency`` (200 Hz); this process only polls the queue,
 retargets, and streams to Sharpa.
 
@@ -38,7 +38,7 @@ for _path in (_PKG, _REPO):
 
 from hydra import compose, initialize_config_dir  # noqa: E402
 
-from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from _paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from retargeting.ik_utils import IK_POLISH, IK_STREAM  # noqa: E402
 from retargeting.paths import (  # noqa: E402
     DITTO_LEADER_ONLY_HAND_CONFIG,
@@ -52,7 +52,7 @@ from teleop.engine import RetargetTeleopEngine  # noqa: E402
 
 # Leader polling stays fast (cheap queue drain); retargeting IK is the expensive
 # part and runs decoupled at a lower rate so it does not starve the 200 Hz
-# finger_aloha read thread (shared GIL).
+# ditto read thread (shared GIL).
 DEFAULT_RATE_HZ = 200.0
 DEFAULT_RETARGET_HZ = 40.0
 LOG_INTERVAL_S = 0.5
@@ -113,8 +113,8 @@ def _strip_run_flags() -> RunFlags:
 
 
 def _build_overrides(cli_args: list[str], *, ditto_3f: bool = False) -> list[str]:
-    """Inject finger_aloha conf searchpath (motor_models, joint_configs)."""
-    searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
+    """Inject ditto conf searchpath (motor_models, joint_configs)."""
+    searchpath = f"hydra.searchpath=[file://{DITTO_CONF_DIR}]"
     overrides = [searchpath]
     if not any(arg.startswith("hand_config=") for arg in cli_args):
         default_cfg = (

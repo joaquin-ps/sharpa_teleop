@@ -64,7 +64,7 @@ python retargeting_teleop/run_teleop.py --ditto --rate 200 --retarget-rate 40
 
 `--rate` is the cheap leader-poll/force-loop rate; `--retarget-rate` is the
 expensive IK rate, kept low (~40 Hz) on purpose — the IK shares the GIL with
-finger_aloha's 200 Hz read thread, so running it at full rate starves that
+ditto's 200 Hz read thread, so running it at full rate starves that
 thread (and the Sharpa hand can't track faster anyway).
 
 The Viser-free core lives in `teleop/engine.py` (`RetargetTeleopEngine`:
@@ -76,7 +76,7 @@ runners drive the same engine.
 There is no 1:1 joint mapping, so force feedback is **model-based**: from the
 Sharpa contact we get a pad force, map it to would-be Ditto joint torques via
 `Jᵀ`, then feed those as synthetic follower currents through the exact same
-finger_aloha `CurrentController` force-rendering + damping law as `joint_teleop`.
+ditto `CurrentController` force-rendering + damping law as `joint_teleop`.
 The measured-current mode skips the model and feeds the raw Sharpa joint torque
 straight through (true `joint_teleop`-style, requires a joint map).
 
@@ -186,7 +186,7 @@ deadband in red. Joints with `plot_joint: false` in the config are skipped.
 
 - Ditto: `conf/hand_config/*.yaml` (default `ditto_7dof_leader_only`). Override
   with `hand_config=...`. `motor_models` / `joint_configs` come from
-  `finger_aloha` via the Hydra searchpath.
+  `ditto` via the Hydra searchpath.
 - Sharpa: `conf/sharpa/default.yaml` (serial, enabled joints, speed/current
   coeffs, IO rate). `angle_overrides_deg` widens the SDK position-clamp ROM per
   joint without editing the `sharpa_controller` submodule.

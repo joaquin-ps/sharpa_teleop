@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _BENCHMARK = Path(__file__).resolve().parent
-_REPO = _BENCHMARK.parents[1]  # sharpa_teleop (for finger_aloha / dynamixel_u2d2)
-for _path in (_REPO / "finger_aloha", _REPO):
+_REPO = _BENCHMARK.parents[1]  # sharpa_teleop (for ditto / dynamixel_u2d2)
+for _path in (_REPO / "ditto", _REPO):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 

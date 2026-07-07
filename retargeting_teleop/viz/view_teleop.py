@@ -44,7 +44,7 @@ for _path in (_PKG, _REPO):
 
 from hydra import compose, initialize_config_dir  # noqa: E402
 
-from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from _paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from retargeting.paths import DITTO_LEADER_ONLY_HAND_CONFIG, DITTO_3F_LEADER_ONLY_HAND_CONFIG  # noqa: E402
 from hardware_interfaces.ditto_leader import LeaderHardwareSession  # noqa: E402
 from teleop.force_render import (  # noqa: E402
@@ -100,8 +100,8 @@ def _strip_view_flags() -> ViewFlags:
 
 
 def _build_overrides(cli_args: list[str], *, ditto_3f: bool = False) -> list[str]:
-    """Inject finger_aloha conf searchpath (motor_models, joint_configs)."""
-    searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
+    """Inject ditto conf searchpath (motor_models, joint_configs)."""
+    searchpath = f"hydra.searchpath=[file://{DITTO_CONF_DIR}]"
     overrides = [searchpath]
     if not any(arg.startswith("hand_config=") for arg in cli_args):
         default_cfg = (

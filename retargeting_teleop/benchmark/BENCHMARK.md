@@ -158,5 +158,5 @@ helps.
 
 ## Dependencies
 
-- `dynamixel_u2d2` (local `finger_aloha/dynamixel_u2d2` or `pip install -e`)
+- `dynamixel_u2d2` (local `ditto/dynamixel_u2d2` or `pip install -e`)
 - `matplotlib` (for plots)

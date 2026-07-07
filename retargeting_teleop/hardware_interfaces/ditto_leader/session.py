@@ -13,7 +13,7 @@ from _paths import setup_import_paths
 
 setup_import_paths()
 
-from finger_aloha.controllers.teleop_controller import TeleopHand
+from ditto.controllers.teleop_controller import TeleopHand
 from hardware_interfaces.ditto_leader.conventions import (
     hardware_joint_angles_to_urdf,
     leader_joint_names_for_motor_ids,

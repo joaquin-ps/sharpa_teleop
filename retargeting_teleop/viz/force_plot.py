@@ -50,7 +50,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from hydra import compose, initialize_config_dir  # noqa: E402
 
-from _paths import CONF_DIR, FA_CONF_DIR  # noqa: E402
+from _paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from retargeting.paths import (  # noqa: E402
     DITTO_3F_LEADER_JOINT_NAMES,
     DITTO_3F_LEADER_MOTOR_IDS,
@@ -359,7 +359,7 @@ class ForceRenderPlotter:
 
 def main() -> None:
     flags = _strip_run_flags()
-    searchpath = f"hydra.searchpath=[file://{FA_CONF_DIR}]"
+    searchpath = f"hydra.searchpath=[file://{DITTO_CONF_DIR}]"
     overrides = [searchpath]
     if not any(arg.startswith("hand_config=") for arg in sys.argv[1:]):
         overrides.append(f"hand_config={DEFAULT_HAND_CONFIG}")
