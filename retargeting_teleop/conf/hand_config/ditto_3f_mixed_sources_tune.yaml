@@ -142,7 +142,7 @@ leader:
       force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 50
       force_rendering_threshold_negative: 50
-      force_rendering_max_current: 160 # 120
+      force_rendering_max_current: 160
       command_rate_limit_mA_per_s: 400.0
 
   # < ----- THUMB (tactile + estimate — softer blend for 3f stability) ----- >
@@ -260,11 +260,11 @@ control:
 force_render:
   modality_filters:
     tactile:
-      torque_filter_alpha: 0.25
+      torque_filter_alpha: 0.05 # 0.25
     measured:
-      torque_filter_alpha: 0.08
+      torque_filter_alpha: 0.05 # 0.08
     estimate:
-      torque_filter_alpha: 0.12
+      torque_filter_alpha: 0.05 # 0.12
   joints:
   - motor_id: 121
     torque_to_mA: 1000.0
