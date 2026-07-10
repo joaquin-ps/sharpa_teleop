@@ -174,23 +174,20 @@ def config_needs_tactile(config: DictConfig) -> bool:
 
 
 def viewer_initial_source(config: DictConfig) -> str:
-    """Best-effort single source for the viewer's initial dropdown value."""
+    """Best-effort single source for the viewer's initial dropdown value.
+
+    Returns ``estimate`` or ``tactile`` only (viewer compares those two live).
+    Weighted config blends prefer tactile when present, else estimate.
+    """
     modes: set[str] = set()
     for m in finger_modes_from_config(config).values():
         fw = m["force"]
-        if len(fw) > 1:
-            if _finger_uses_modality(fw, "tactile") and _finger_uses_modality(
-                fw, "estimate"
-            ):
-                modes.add("mix")
-            elif _finger_uses_modality(fw, "tactile"):
-                modes.add("tactile")
-            else:
-                modes.add("estimate")
-        else:
-            modes.add(next(iter(fw)))
-    if "mix" in modes:
-        return "mix"
+        if _finger_uses_modality(fw, "tactile"):
+            modes.add("tactile")
+        if _finger_uses_modality(fw, "estimate"):
+            modes.add("estimate")
+        if _finger_uses_modality(fw, "measured") and not modes:
+            modes.add("estimate")
     if "tactile" in modes:
         return "tactile"
     return "estimate"
@@ -336,13 +333,13 @@ class RetargetForceRenderTeleop:
         # finger -> [(ditto_joint, sharpa_urdf_joint, scale)] for measured force.
         self._joint_map = self._parse_joint_map()
 
-        # Middle joints live on the 3-finger Ditto URDF; v2 kinematics for all hardware.
+        # Middle joints live on the 3-finger Ditto URDF; use it for all hardware.
         self.engine = RetargetTeleopEngine(
             sharpa_follower=sharpa_follower,
             fingers=self._position_retarget_fingers,
             retargeter=DittoToSharpaRetargeter.from_sharpa_config(
                 self.config.get("sharpa"),
-                ditto_urdf=ditto_leader_urdf(kinematics_v2=True),
+                ditto_urdf=ditto_leader_urdf(three_finger=True),
             ),
         )
         self.sharpa_follower = sharpa_follower

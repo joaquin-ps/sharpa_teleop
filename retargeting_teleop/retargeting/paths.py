@@ -11,15 +11,17 @@ import numpy as np
 RETARGETING_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = RETARGETING_DIR / "assets"
 
-DITTO_LEADER_DIR = ASSETS_DIR / "ditto_leader"
-DITTO_3F_LEADER_DIR = ASSETS_DIR / "ditto_3f_leader_v2"
-DITTO_3F_LEADER_V1_DIR = ASSETS_DIR / "ditto_3f_leader"
+DITTO_2F_LEADER_DIR = ASSETS_DIR / "ditto_2f_leader"
+DITTO_3F_LEADER_DIR = ASSETS_DIR / "ditto_3f_leader"
 SHARPA_RIGHT_DIR = ASSETS_DIR / "sharpa_right"
 
-DITTO_LEADER_URDF = DITTO_LEADER_DIR / "ditto_leader.urdf"
-DITTO_3F_LEADER_URDF = DITTO_3F_LEADER_DIR / "ditto_3f_leader_v2.urdf"
-DITTO_3F_LEADER_V1_URDF = DITTO_3F_LEADER_V1_DIR / "ditto_3f_leader.urdf"
+DITTO_2F_LEADER_URDF = DITTO_2F_LEADER_DIR / "ditto_2f_leader.urdf"
+DITTO_3F_LEADER_URDF = DITTO_3F_LEADER_DIR / "ditto_3f_leader.urdf"
 SHARPA_RIGHT_URDF = SHARPA_RIGHT_DIR / "right_sharpa_wave.urdf"
+
+# Back-compat aliases (prefer DITTO_2F_LEADER_URDF / DITTO_3F_LEADER_URDF).
+DITTO_LEADER_URDF = DITTO_2F_LEADER_URDF
+DITTO_LEADER_DIR = DITTO_2F_LEADER_DIR
 
 # Actuated joints on the Ditto leader (matches ditto motor mapping).
 DITTO_LEADER_JOINT_NAMES: tuple[str, ...] = (
@@ -89,16 +91,18 @@ DITTO_3F_VIZ_FRAME_LINKS: tuple[str, ...] = (
 )
 
 
-def ditto_leader_urdf(*, three_finger: bool = False, kinematics_v2: bool = False) -> Path:
+def ditto_leader_urdf(*, three_finger: bool = False, kinematics_v2: bool | None = None) -> Path:
     """Bundled Ditto leader URDF.
 
-    ``kinematics_v2`` / ``three_finger`` select ``ditto_3f_leader_v2`` (canonical
-    for hardware IK, Jᵀ, and retargeting). Otherwise the legacy 2f ``ditto_leader``
-    URDF (viewer-only / old -Z index axes).
+    ``three_finger=True`` (or deprecated ``kinematics_v2=True``) selects the
+    canonical 3f ``ditto_3f_leader`` used for hardware IK, Jᵀ, and retargeting.
+    Otherwise returns the 2f ``ditto_2f_leader`` (viewer / index+thumb only).
     """
-    if kinematics_v2 or three_finger:
+    if kinematics_v2 is not None:
+        three_finger = bool(kinematics_v2) or three_finger
+    if three_finger:
         return DITTO_3F_LEADER_URDF
-    return DITTO_LEADER_URDF
+    return DITTO_2F_LEADER_URDF
 
 
 def ditto_viz_frame_links(*, three_finger: bool = False) -> tuple[str, ...]:

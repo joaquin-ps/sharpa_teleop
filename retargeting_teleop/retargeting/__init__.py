@@ -4,6 +4,8 @@ from .ditto_ik import DittoFingerIK
 from .retargeter import DittoToSharpaRetargeter, RetargetResult
 from .sharpa_ik import SharpaFingerIK
 from .paths import (
+    DITTO_2F_LEADER_URDF,
+    DITTO_3F_LEADER_URDF,
     DITTO_LEADER_JOINT_NAMES,
     DITTO_LEADER_URDF,
     DITTO_RETARGET_BASE_LINK,
@@ -20,6 +22,8 @@ __all__ = [
     "DittoToSharpaRetargeter",
     "RetargetResult",
     "SharpaFingerIK",
+    "DITTO_2F_LEADER_URDF",
+    "DITTO_3F_LEADER_URDF",
     "DITTO_LEADER_JOINT_NAMES",
     "DITTO_LEADER_URDF",
     "DITTO_RETARGET_BASE_LINK",

@@ -27,39 +27,35 @@ python retargeting_teleop/viz/view_assets.py --3f            # 3-finger Ditto UR
 
 ## Teleop with viewer (hardware opt-in)
 
-Hardware is **off by default**. `--ditto` drives the viewer from the physical
-Ditto encoders (torque off); `--sharpa` streams retargeted joints to the Sharpa
-Wave hand. With `--sharpa` the viewer draws pad-force arrows (Sharpa + Ditto
-pads) and the would-be leader joint-torque arrows (`Jᵀ·F`, shown not commanded).
+Hardware is **off by default** (Viser only). Pass `--ditto` and/or `--sharpa`
+explicitly to connect hardware.
 
 ```bash
-python retargeting_teleop/viz/view_teleop.py                  # viewer only
-python retargeting_teleop/viz/view_teleop.py --ditto --sharpa # both hardware
+python retargeting_teleop/viz/view_teleop.py                       # viewer only
+python retargeting_teleop/viz/view_teleop.py --ditto --sharpa      # both hardware
 python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_hand_tactile
-python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true  # no Ditto USB
+python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
 ```
 
 | Flag | Effect |
 | --- | --- |
-| `--ditto` | Enable Ditto leader hardware (encoders drive the viewer) |
-| `--sharpa` | Enable Sharpa follower hardware (stream retargeted joints) |
-| `--leader-only` / `--sharpa-only` | Show a single hand (no hardware) |
+| `--ditto` | Enable Ditto leader hardware |
+| `--sharpa` | Enable Sharpa follower hardware |
+| `--leader-only` / `--sharpa-only` | Show a single hand URDF |
 | `--3f` | Use the 3-finger Ditto leader URDF (index + middle + thumb) |
 
-The control mode is **config-only** (`hand_config.control.fingers`); a
-tactile/mix config auto-enables `--sharpa`. The viewer still has a live **Force
-source** dropdown for interactive comparison. Each interface also has a runtime
-checkbox in the **Controls** GUI folder.
+The control mode is **config-only** (`hand_config.control.fingers`). The viewer
+has a live **Force source** dropdown (`estimate` | `tactile`) for interactive
+comparison of pad-force arrows.
 
 ## Headless teleop (no viewer)
 
-Same core loop as the viewer, without Viser. At least one of `--ditto` /
-`--sharpa` is required.
+Same core loop as the viewer, without Viser. Always connects Ditto + Sharpa.
 
 ```bash
-python retargeting_teleop/run_teleop.py --ditto --sharpa
-python retargeting_teleop/run_teleop.py --ditto --sharpa --no-thumb   # index only
-python retargeting_teleop/run_teleop.py --ditto --rate 200 --retarget-rate 40
+python retargeting_teleop/run_teleop.py
+python retargeting_teleop/run_teleop.py --no-thumb
+python retargeting_teleop/run_teleop.py --rate 200 --retarget-rate 40
 ```
 
 `--rate` is the cheap leader-poll/force-loop rate; `--retarget-rate` is the
@@ -85,10 +81,9 @@ the chosen config; a per-finger summary is printed at startup. See
 [`docs/COMMANDS.md`](docs/COMMANDS.md) for the full demo set.
 
 ```bash
-# headless force render (mode comes from the config):
+# headless force render (always connects Sharpa; mode comes from the config):
 python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile
-# add the Sharpa hand for an estimate config:
-python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render --sharpa
+python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render
 # raise a per-joint gain at runtime (index PIP = joint_settings index 2):
 python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile \
   hand_config.leader.joint_settings.2.current_control.force_rendering_gain=0.05
@@ -134,14 +129,15 @@ force-source CLI flags, and the startup banner echoes the resolved mode.
 | --- | --- |
 | `estimate` | task-space: model-based `Jᵀ` solve of contact force from Sharpa joint torques |
 | `tactile` | task-space: fingertip tactile F6 sensor, rotated into the Sharpa base frame |
-| `mix` | task-space: 50/50 blend of `estimate` + `tactile` |
+| `mix` | config shortcut: 50/50 blend of `estimate` + `tactile` (or use a weight dict) |
 | `measured` | joint-space: raw measured Sharpa joint current (`joint_teleop`-style); needs `control.joint_map` |
 
-The `estimate`/`tactile`/`mix` sources all output force in the same Sharpa-base
-frame at the pad, so they are interchangeable per finger (you can run `index:
-estimate`, `thumb: tactile`). `measured` skips the model and feeds the Sharpa
-joint torque straight through. Index supports every combination; the thumb is
-intended for `retarget` position.
+The `estimate`/`tactile` sources (and weighted blends / `mix`) all output force
+in the same Sharpa-base frame at the pad, so they are interchangeable per finger
+(you can run `index: estimate`, `thumb: tactile`). The viewer dropdown only
+toggles `estimate` vs `tactile` for live arrow comparison. `measured` skips the
+model and feeds the Sharpa joint torque straight through. Index supports every
+combination; the thumb is intended for `retarget` position.
 
 Two shortcut strings exist: `retarget` == `{position: retarget, force: estimate}`
 and `joint` == `{position: joint, force: measured}`.
@@ -161,7 +157,7 @@ control:
     - {ditto_joint: index_joint_2, sharpa_joint: right_index_PIP,    scale: -1.0}
 ```
 
-Tactile/mix sources auto-enable the Sharpa follower. Two more config-only
+The Sharpa follower is always connected for force render. Two more config-only
 options live under `force_render`: `calibrate: true` (calibrate tactile on
 startup) and `debug: true` (print raw F6 vs base force). Per-motor numeric tuning
 (`torque_to_mA`, `torque_filter_alpha`) stays under `force_render.joints`, and
@@ -174,8 +170,8 @@ calibration hooks in `hardware_interfaces/sharpa_follower/conventions.py`
 ### Live plot
 
 ```bash
-python retargeting_teleop/viz/force_plot.py hand_config=ditto_hand_tactile --sharpa
-python retargeting_teleop/viz/force_plot.py                                   # leader only
+python retargeting_teleop/viz/force_plot.py hand_config=ditto_hand_tactile
+python retargeting_teleop/viz/force_plot.py hand_config=ditto_index_force_render
 ```
 
 Left column: estimated joint torque (Nm), raw vs filtered. Right column: force

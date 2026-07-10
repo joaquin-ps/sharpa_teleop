@@ -162,7 +162,7 @@ control:
   joint_map:
     index:
     # position is IK here, so scale only sets the rendered-force sign
-    # τ_ditto = scale·τ_sharpa. +1 for ditto_3f_leader_v2 (+Z index axes).
+    # τ_ditto = scale·τ_sharpa. +1 for ditto_3f_leader (+Z index axes).
     - {ditto_joint: index_joint_0, sharpa_joint: right_index_MCP_AA, scale: 1.0}
     - {ditto_joint: index_joint_1, sharpa_joint: right_index_MCP_FE, scale: 1.0}
     - {ditto_joint: index_joint_2, sharpa_joint: right_index_PIP, scale: 1.0}

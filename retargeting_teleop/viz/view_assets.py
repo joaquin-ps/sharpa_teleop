@@ -634,12 +634,12 @@ def run_viewer(
     def _set_force_source(mode: str) -> bool:
         """Swap the engine's contact-force source; enable tactile lazily.
 
-        Returns True on success. Tactile/mix need the Sharpa tactile sensors; if
+        Returns True on success. Tactile needs the Sharpa tactile sensors; if
         they cannot be enabled we keep the current source and report failure.
         """
         if engine is None:
             return False
-        if mode in ("tactile", "mix"):
+        if mode == "tactile":
             if sharpa_follower is None:
                 return False
             if not tactile_ready["value"]:
@@ -800,7 +800,7 @@ def run_viewer(
 
             force_source_dropdown = server.gui.add_dropdown(
                 "Force source",
-                options=("estimate", "tactile", "mix"),
+                options=("estimate", "tactile"),
                 initial_value=force_mode,
             )
 

@@ -16,17 +16,15 @@ Which finger(s) appear is inferred from the leader motors in the hand_config
 (``ditto_index_force_render`` default, or ``ditto_thumb_force_render``).
 
 Usage (from sharpa_teleop repo root):
-    python retargeting_teleop/viz/force_plot.py --sharpa
-    python retargeting_teleop/viz/force_plot.py hand_config=ditto_thumb_force_render --sharpa
-    python retargeting_teleop/viz/force_plot.py            # leader only (no force)
-    python retargeting_teleop/viz/force_plot.py --sharpa u2d2.usb_port=/dev/ttyUSB0
+    python retargeting_teleop/viz/force_plot.py
+    python retargeting_teleop/viz/force_plot.py hand_config=ditto_thumb_force_render
+    python retargeting_teleop/viz/force_plot.py u2d2.usb_port=/dev/ttyUSB0
 
-Control mode is config-only (``hand_config.control.fingers``: per-finger
-position + force source). Tactile/mix sources imply the Sharpa follower;
-``--sharpa`` forces the follower on for an estimate config.
+Control mode is config-only (``hand_config.control.fingers``). The Sharpa
+follower is always connected (same as ``run_force_render.py``).
 
 Raise gains at runtime, e.g.:
-    ... --sharpa hand_config.leader.joint_settings.1.current_control.force_rendering_gain=0.05
+    ... hand_config.leader.joint_settings.1.current_control.force_rendering_gain=0.05
 """
 
 from __future__ import annotations
@@ -59,7 +57,6 @@ from retargeting.paths import (  # noqa: E402
 )
 from teleop.force_render import (  # noqa: E402
     RetargetForceRenderTeleop,
-    config_needs_tactile,
     finger_modes_from_config,
 )
 
@@ -70,7 +67,6 @@ DEFAULT_HAND_CONFIG = "ditto_index_force_render"
 
 @dataclass
 class RunFlags:
-    sharpa_hardware: bool = False
     retarget_hz: float = 40.0
 
 
@@ -79,9 +75,7 @@ def _strip_run_flags() -> RunFlags:
     remaining = [sys.argv[0]]
     args = iter(sys.argv[1:])
     for arg in args:
-        if arg == "--sharpa":
-            flags.sharpa_hardware = True
-        elif arg == "--retarget-rate":
+        if arg == "--retarget-rate":
             flags.retarget_hz = float(next(args))
         elif arg.startswith("--retarget-rate="):
             flags.retarget_hz = float(arg.split("=", 1)[1])
@@ -100,9 +94,7 @@ class ForceRenderPlotter:
         self.max_history = max_history
         self.plot_window_seconds = 10.0
 
-        # Control mode is config-only (hand_config.control.fingers).
         self.finger_modes = finger_modes_from_config(config)
-        self.need_sharpa = flags.sharpa_hardware or config_needs_tactile(config)
 
         self.leader_chain = list(config.hand_config.leader.motor_ids)
         self.num_joints = len(self.leader_chain)
@@ -167,16 +159,11 @@ class ForceRenderPlotter:
         return pos, neg
 
     def _build_controller(self) -> None:
-        sharpa_follower = None
-        if self.need_sharpa:
-            from hardware_interfaces.sharpa_follower.session import (
-                SharpaFollowerSession,
-            )
+        from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
-            sharpa_follower = SharpaFollowerSession(self.config, verbose=True)
         self.controller = RetargetForceRenderTeleop(
             self.config,
-            sharpa_follower=sharpa_follower,
+            sharpa_follower=SharpaFollowerSession(self.config, verbose=True),
             retarget_hz=self.flags.retarget_hz,
             state_queue=self.state_queue,
         )
@@ -321,7 +308,7 @@ class ForceRenderPlotter:
         assert self.controller is not None
         print("Starting force-render live plot")
         print(f"  Leader motors: {self.leader_chain}")
-        print(f"  Sharpa: {'on' if self.need_sharpa else 'off (no force)'}")
+        print(f"  Sharpa: on")
         modes_str = ", ".join(
             f"{f} (pos:{m['position']}, force:{m['force']})"
             if isinstance(m["force"], dict)

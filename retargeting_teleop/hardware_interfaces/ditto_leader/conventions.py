@@ -12,8 +12,9 @@ from retargeting.paths import (
     DITTO_LEADER_MOTOR_IDS,
 )
 
+# TODO: consider removing: 
 # Per-joint sign: hardware encoder + vs URDF +.
-# Canonical leader kinematics use ditto_3f_leader_v2 (+Z joint axes): no flip.
+# Canonical leader kinematics use ditto_3f_leader (+Z joint axes): no flip.
 def ditto_hardware_joint_signs(
     joint_names: tuple[str, ...],
 ) -> tuple[float, ...]:

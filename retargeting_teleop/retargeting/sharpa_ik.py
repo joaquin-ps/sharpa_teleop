@@ -59,6 +59,23 @@ class SharpaFingerIK:
     def finger_joint_names(self, finger: FingerName) -> tuple[str, ...]:
         return _FINGER_TO_JOINTS[finger]
 
+    def finger_joint_frames_in_base(
+        self, q: np.ndarray, finger: FingerName
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
+        """(origin, rotation_axis) per finger joint, in base frame (axis is unit)."""
+        pin.computeJointJacobians(self.model, self.data, q)
+        frames: list[tuple[np.ndarray, np.ndarray]] = []
+        for name in _FINGER_TO_JOINTS[finger]:
+            jid = self.model.getJointId(name)
+            idx_v = self.model.joints[jid].idx_v
+            jac = pin.getJointJacobian(
+                self.model, self.data, jid, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+            )
+            axis = np.asarray(jac[3:6, idx_v], dtype=float)
+            origin = np.asarray(self.data.oMi[jid].translation, dtype=float)
+            frames.append((origin, axis))
+        return frames
+
     def pad_jacobian(self, q: np.ndarray, finger: FingerName) -> np.ndarray:
         """6×n pad Jacobian (base-aligned axes at the pad) for the finger joints."""
         frame_id = self.model.getFrameId(_FINGER_TO_PAD[finger])

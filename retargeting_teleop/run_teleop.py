@@ -4,23 +4,23 @@
 Runs the same core loop as ``viz/view_teleop.py`` without Viser/IK on the main
 thread. Ditto encoder reads still run in a background ditto thread at
 ``hand_config.control_frequency`` (200 Hz); this process only polls the queue,
-retargets, and streams to Sharpa.
+retargets, and streams to Sharpa. Both the Ditto leader and Sharpa follower are
+always connected.
 
 Use this to check whether the viewer was starving the 200 Hz read loop (GIL
 contention). Compare the periodic ``PERFORMANCE SUMMARY`` from the background
 thread here vs ``view_teleop.py``.
 
 Usage (from sharpa_teleop repo root):
-    python retargeting_teleop/run_teleop.py --ditto --sharpa --3f
-    python retargeting_teleop/run_teleop.py --ditto --3f --rate 200
-    python retargeting_teleop/run_teleop.py --ditto --sharpa --3f --rate 200 --retarget-rate 40
-    python retargeting_teleop/run_teleop.py --ditto u2d2.usb_port=/dev/ttyUSB0
+    python retargeting_teleop/run_teleop.py --3f
+    python retargeting_teleop/run_teleop.py --3f --rate 200 --retarget-rate 40
+    python retargeting_teleop/run_teleop.py u2d2.usb_port=/dev/ttyUSB0
 
 ``--rate`` — main-loop poll period (Hz). ``--retarget-rate`` — IK + Sharpa send
 (Hz); keep lower than ``--rate`` so retargeting does not block leader polling.
 
 From retargeting_teleop/ package dir:
-    python run_teleop.py --ditto --sharpa
+    python run_teleop.py
 """
 
 from __future__ import annotations
@@ -71,8 +71,6 @@ class _MainLoopPerf:
 
 @dataclass
 class RunFlags:
-    ditto_hardware: bool = False
-    sharpa_hardware: bool = False
     ditto_3f: bool = False
     rate_hz: float = DEFAULT_RATE_HZ
     retarget_hz: float = DEFAULT_RETARGET_HZ
@@ -86,11 +84,7 @@ def _strip_run_flags() -> RunFlags:
     remaining = [sys.argv[0]]
     args = iter(sys.argv[1:])
     for arg in args:
-        if arg == "--ditto":
-            flags.ditto_hardware = True
-        elif arg == "--sharpa":
-            flags.sharpa_hardware = True
-        elif arg == "--3f":
+        if arg == "--3f":
             flags.ditto_3f = True
         elif arg == "--no-thumb":
             flags.enable_thumb = False
@@ -152,33 +146,22 @@ def _print_main_loop_perf(perf: _MainLoopPerf, *, target_hz: float) -> None:
 
 def main() -> None:
     flags = _strip_run_flags()
-    if not (flags.ditto_hardware or flags.sharpa_hardware):
-        raise SystemExit(
-            "Headless teleop needs hardware: pass --ditto and/or --sharpa "
-            "(use viz/view_teleop.py for a viewer-only session)."
-        )
-
     overrides = _build_overrides(sys.argv[1:], ditto_3f=flags.ditto_3f)
     with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
         cfg = compose(config_name="config", overrides=overrides)
 
-    hardware = None
-    if flags.ditto_hardware:
-        hardware = LeaderHardwareSession(cfg)
-        print("Connecting Ditto leader hardware...")
-        hardware.start()
-        print(
-            f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
-            f"(mode={cfg.hand_config.leader.mode}, "
-            f"follower={cfg.hand_config.follower.mode})"
-        )
+    hardware = LeaderHardwareSession(cfg)
+    print("Connecting Ditto leader hardware...")
+    hardware.start()
+    print(
+        f"Leader motors: {list(cfg.hand_config.leader.motor_ids)} "
+        f"(mode={cfg.hand_config.leader.mode}, "
+        f"follower={cfg.hand_config.follower.mode})"
+    )
 
-    sharpa_follower = None
-    if flags.sharpa_hardware:
-        # Imported lazily: this pulls in the Sharpa Wave SDK.
-        from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
+    from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
-        sharpa_follower = SharpaFollowerSession(cfg, verbose=True)
+    sharpa_follower = SharpaFollowerSession(cfg, verbose=True)
 
     if flags.ditto_3f:
         fingers: tuple[FingerName, ...] = ("index", "middle", "thumb")
@@ -191,7 +174,7 @@ def main() -> None:
         sharpa_follower=sharpa_follower,
         retargeter=DittoToSharpaRetargeter.from_sharpa_config(
             cfg.get("sharpa"),
-            ditto_urdf=ditto_leader_urdf(kinematics_v2=True),
+            ditto_urdf=ditto_leader_urdf(three_finger=True),
         ),
         fingers=fingers,
     )
@@ -215,17 +198,12 @@ def main() -> None:
     print(
         f"Headless teleop: main poll {flags.rate_hz:.0f} Hz, "
         f"retarget {flags.retarget_hz:.0f} Hz, "
-        f"Ditto read thread {control_hz:.0f} Hz "
-        f"(ditto={'on' if hardware else 'off'}, "
-        f"sharpa={'on' if sharpa_follower else 'off'})."
+        f"Ditto read thread {control_hz:.0f} Hz."
     )
-    if hardware is not None:
-        print(
-            "  Ditto reads run in a background thread — watch PERFORMANCE SUMMARY "
-            "below (same metric as view_teleop.py)."
-        )
-    if hardware is None:
-        print("  No leader hardware: holding neutral pose (Sharpa receives neutral).")
+    print(
+        "  Ditto reads run in a background thread — watch PERFORMANCE SUMMARY "
+        "below (same metric as view_teleop.py)."
+    )
 
     # Stream an initial pose so the follower has a target even before leader data.
     engine.retarget(solve_params=IK_POLISH)
