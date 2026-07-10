@@ -1,6 +1,6 @@
 # @package hand_config
 #
-# Ditto 7-DoF leader only: read encoders, no follower, no force feedback.
+# Ditto 2-finger leader only: read encoders, no follower, no force feedback.
 # Motor order matches retargeting DITTO_LEADER_JOINT_NAMES:
 #   index: 121, 122, 123  |  thumb: 111, 112, 113, 114
 

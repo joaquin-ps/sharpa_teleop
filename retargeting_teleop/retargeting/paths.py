@@ -60,8 +60,8 @@ DITTO_3F_LEADER_MOTOR_IDS: tuple[int, ...] = (
 DITTO_LEADER_MOTOR_IDS: tuple[int, ...] = (121, 122, 123, 111, 112, 113, 114)
 
 # Default Hydra hand_config for leader-only visualization (retargeting_teleop/conf/).
-DITTO_LEADER_ONLY_HAND_CONFIG = "ditto_7dof_leader_only"
-DITTO_3F_LEADER_ONLY_HAND_CONFIG = "ditto_10dof_leader_only"
+DITTO_LEADER_ONLY_HAND_CONFIG = "ditto_2f_leader_only"
+DITTO_3F_LEADER_ONLY_HAND_CONFIG = "ditto_3f_leader_only"
 
 # FK/IK base frame on the Ditto leader: intersection of index_joint_0 and
 # index_joint_1 axes at q=0 → (0, 0, 0.046) m in base_link (+Z from index_joint_0).

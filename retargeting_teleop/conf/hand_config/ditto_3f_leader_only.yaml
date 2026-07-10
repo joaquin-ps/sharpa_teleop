@@ -1,6 +1,6 @@
 # @package hand_config
 #
-# Ditto 10-DoF leader only (3-finger): read encoders, no follower, no force feedback.
+# Ditto 3-finger leader only: read encoders, no follower, no force feedback.
 # Motor order matches retargeting DITTO_3F_LEADER_JOINT_NAMES:
 #   index: 121, 122, 123  |  middle: 131, 132, 133  |  thumb: 111, 112, 113, 114
 

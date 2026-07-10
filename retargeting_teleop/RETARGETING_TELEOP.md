@@ -93,7 +93,8 @@ python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile \
 
 | Config | Fingers | Position | Force |
 | --- | --- | --- | --- |
-| `ditto_7dof_leader_only` | index+thumb | retarget | none (viewer/teleop default) |
+| `ditto_2f_leader_only` | index+thumb | retarget | none (viewer/teleop default) |
+| `ditto_3f_leader_only` | index+middle+thumb | retarget | none (3f viewer/teleop default) |
 | `ditto_index_force_render` | index | retarget | estimate |
 | `ditto_thumb_force_render` | thumb | retarget | estimate |
 | `ditto_index_tactile` | index | retarget | tactile |
@@ -180,7 +181,7 @@ deadband in red. Joints with `plot_joint: false` in the config are skipped.
 
 ## Configs
 
-- Ditto: `conf/hand_config/*.yaml` (default `ditto_7dof_leader_only`). Override
+- Ditto: `conf/hand_config/*.yaml` (default `ditto_2f_leader_only`). Override
   with `hand_config=...`. `motor_models` / `joint_configs` come from
   `ditto` via the Hydra searchpath.
 - Sharpa: `conf/sharpa/default.yaml` (serial, enabled joints, speed/current
