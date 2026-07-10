@@ -1,11 +1,10 @@
 # Demo commands
 
-Run all of these from the `sharpa_teleop/` directory. Headless teleop
-(`run_teleop.py`, `run_force_render.py`) always connects Ditto + Sharpa.
-`view_teleop.py` is viewer-only unless you pass `--ditto` and/or `--sharpa`.
-The control mode is defined by `hand_config` — `run_force_render.py` prints a
-per-finger summary at startup. Open the viewer at the URL it prints
-(default http://localhost:8080).
+Run all of these from the `sharpa_teleop/` directory. Headless force render
+(`run_force_render.py`) always connects Ditto + Sharpa. `view_teleop.py` is
+viewer-only unless you pass `--ditto` and/or `--sharpa`. The control mode is
+defined by `hand_config` — `run_force_render.py` prints a per-finger summary at
+startup. Open the viewer at the URL it prints (default http://localhost:8080).
 
 Top-level configs live in `conf/hand_config/*.yaml` (not `fingers/` or `old/`).
 

@@ -1,7 +1,7 @@
 """Viser-free core for Ditto → Sharpa retargeting teleop.
 
-Shared by the GUI viewer (``viz/view_assets.py``) and the headless runner
-(``run_teleop.py``).
+Shared by the GUI viewer (``viz/view_teleop.py``) and the headless force-render
+runner (``run_force_render.py``).
 """
 
 from .engine import ForceFeedbackSample, RetargetTeleopEngine

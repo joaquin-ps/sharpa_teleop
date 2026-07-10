@@ -48,24 +48,9 @@ The control mode is **config-only** (`hand_config.control.fingers`). The viewer
 has a live **Force source** dropdown (`estimate` | `tactile`) for interactive
 comparison of pad-force arrows.
 
-## Headless teleop (no viewer)
-
-Same core loop as the viewer, without Viser. Always connects Ditto + Sharpa.
-
-```bash
-python retargeting_teleop/run_teleop.py
-python retargeting_teleop/run_teleop.py --no-thumb
-python retargeting_teleop/run_teleop.py --rate 200 --retarget-rate 40
-```
-
-`--rate` is the cheap leader-poll/force-loop rate; `--retarget-rate` is the
-expensive IK rate, kept low (~40 Hz) on purpose — the IK shares the GIL with
-ditto's 200 Hz read thread, so running it at full rate starves that
-thread (and the Sharpa hand can't track faster anyway).
-
 The Viser-free core lives in `teleop/engine.py` (`RetargetTeleopEngine`:
-`poll_leader()`, `retarget()`, `estimate_force_feedback()`); the GUI and headless
-runners drive the same engine.
+`poll_leader()`, `retarget()`, `estimate_force_feedback()`). The viewer and
+headless force-render runner drive the same engine.
 
 ## Force rendering (haptics)
 
