@@ -33,7 +33,7 @@ explicitly to connect hardware.
 ```bash
 python retargeting_teleop/viz/view_teleop.py                       # viewer only
 python retargeting_teleop/viz/view_teleop.py --ditto --sharpa      # both hardware
-python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_hand_tactile
+python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_2f_tactile
 python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
 ```
 
@@ -82,33 +82,30 @@ the chosen config; a per-finger summary is printed at startup. See
 
 ```bash
 # headless force render (always connects Sharpa; mode comes from the config):
-python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile
-python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render
+python retargeting_teleop/run_force_render.py hand_config=ditto_2f_tactile
+python retargeting_teleop/run_force_render.py hand_config=ditto_3f_blend
 # raise a per-joint gain at runtime (index PIP = joint_settings index 2):
-python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile \
+python retargeting_teleop/run_force_render.py hand_config=ditto_2f_tactile \
   hand_config.leader.joint_settings.2.current_control.force_rendering_gain=0.05
 ```
 
 ### Configs (`conf/hand_config/`)
 
+Top-level configs (preferred). Per-finger / legacy YAMLs live under `fingers/` and `old/`.
+
 | Config | Fingers | Position | Force |
 | --- | --- | --- | --- |
-| `ditto_2f_leader_only` | index+thumb | retarget | none (viewer/teleop default) |
-| `ditto_3f_leader_only` | index+middle+thumb | retarget | none (3f viewer/teleop default) |
-| `ditto_index_force_render` | index | retarget | estimate |
-| `ditto_thumb_force_render` | thumb | retarget | estimate |
-| `ditto_index_tactile` | index | retarget | tactile |
-| `ditto_thumb_tactile` | thumb | retarget | tactile |
-| `ditto_hand_tactile` | index+thumb | retarget | tactile |
-| `ditto_hand_mixed` | index+thumb | index=joint, thumb=retarget | index=measured, thumb=tactile |
-| `ditto_hand_mixed_ik` | index+thumb | retarget | index=measured, thumb=tactile |
+| `ditto_2f_leader_only` | index+thumb | — | none (viewer/teleop default) |
+| `ditto_3f_leader_only` | index+middle+thumb | — | none (3f viewer/teleop default) |
+| `ditto_2f_tactile` | index+thumb | retarget | tactile |
+| `ditto_3f_tactile` | index+middle+thumb | retarget | tactile |
+| `ditto_2f_blend` | index+thumb | index=joint, thumb=retarget | index=50/50 tactile+measured, thumb=65/35 tactile+estimate |
+| `ditto_3f_blend` | index+middle+thumb | index/middle=joint, thumb=retarget | index/middle=50/50 tactile+measured, thumb=65/35 tactile+estimate |
 
 Per-config tuning (gains, `torque_to_mA`, thresholds, EMA `force_rendering_alpha`
 / `torque_filter_alpha`, damping) lives under `leader.joint_settings.*` and
 `force_render.joints`. Estimate and tactile are **independent tuning surfaces**
-(sensor scale ≠ model estimate). All values mirror
-`joint_teleop/conf/hand_config/sharpa_3dof_index.yaml` — keep them in sync by
-hand.
+(sensor scale ≠ model estimate).
 
 ### Control modes (per finger)
 
@@ -171,8 +168,8 @@ calibration hooks in `hardware_interfaces/sharpa_follower/conventions.py`
 ### Live plot
 
 ```bash
-python retargeting_teleop/viz/force_plot.py hand_config=ditto_hand_tactile
-python retargeting_teleop/viz/force_plot.py hand_config=ditto_index_force_render
+python retargeting_teleop/viz/force_plot.py hand_config=ditto_2f_tactile
+python retargeting_teleop/viz/force_plot.py hand_config=ditto_3f_blend
 ```
 
 Left column: estimated joint torque (Nm), raw vs filtered. Right column: force

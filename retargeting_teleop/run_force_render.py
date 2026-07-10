@@ -2,32 +2,26 @@
 """Headless retargeting force rendering for the Ditto leader.
 
 Drives the configured Ditto leader motors in CURRENT mode and renders a haptic
-force synthesized from the estimated Ditto joint torque (Jᵀ·F from the Sharpa
-contact force). The Sharpa follower is always connected. Which finger(s) are
-retargeted/rendered is inferred from the leader motors in the selected
-``hand_config``.
+force synthesized from Sharpa contact (tactile / estimate / measured / blend).
+The Sharpa follower is always connected. Which finger(s) are retargeted/rendered
+is inferred from the leader motors in the selected ``hand_config``.
 
 The control mode is fully defined by the chosen ``hand_config``: each finger's
 position and force source are declared together under ``control.fingers``
-(position = retarget | joint; force = measured | estimate | tactile | mix).
-A per-finger summary is printed at startup. Configs (``conf/hand_config/``):
-    ditto_index_force_render   index: retarget + estimate
-    ditto_thumb_force_render   thumb: retarget + estimate
-    ditto_index_tactile        index: retarget + tactile
-    ditto_middle_tactile       middle: retarget + tactile
-    ditto_thumb_tactile        thumb: retarget + tactile
-    ditto_hand_tactile         index+thumb: retarget + tactile
-    ditto_3f_tactile           index+middle+thumb: retarget + tactile
-    ditto_hand_mixed           index: joint + measured;  thumb: retarget + tactile
-    ditto_hand_mixed_ik        index: retarget + measured; thumb: retarget + tactile
+(position = retarget | joint; force = measured | estimate | tactile | weight dict).
+A per-finger summary is printed at startup. Top-level configs (``conf/hand_config/``):
+    ditto_2f_tactile   index+thumb: retarget + tactile
+    ditto_3f_tactile   index+middle+thumb: retarget + tactile
+    ditto_2f_blend     index joint+blend, thumb retarget+blend
+    ditto_3f_blend     index/middle joint+blend, thumb retarget+blend
 
 Set ``force_render.calibrate: true`` / ``force_render.debug: true`` in the config
 to calibrate tactile on startup / print raw F6 vs base force.
 
 Examples:
-    python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile
-    python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render
-    python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile \
+    python retargeting_teleop/run_force_render.py hand_config=ditto_2f_tactile
+    python retargeting_teleop/run_force_render.py hand_config=ditto_3f_blend
+    python retargeting_teleop/run_force_render.py hand_config=ditto_2f_tactile \
         hand_config.leader.joint_settings.1.current_control.force_rendering_gain=0.05
 
 Use ``u2d2.fake_u2d2=true`` to exercise the leader path without USB hardware.
@@ -51,7 +45,7 @@ from hydra import compose, initialize_config_dir  # noqa: E402
 from _paths import CONF_DIR, DITTO_CONF_DIR  # noqa: E402
 from teleop.force_render import RetargetForceRenderTeleop  # noqa: E402
 
-DEFAULT_HAND_CONFIG = "ditto_index_force_render"
+DEFAULT_HAND_CONFIG = "ditto_2f_tactile"
 DEFAULT_RETARGET_HZ = 40.0
 
 

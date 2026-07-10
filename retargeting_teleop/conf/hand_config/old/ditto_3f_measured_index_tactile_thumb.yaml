@@ -1,12 +1,18 @@
 # @package hand_config
 #
-# 3-finger Ditto (index + middle + thumb): retarget IK + tactile force on all fingers.
-# Middle joint gains match index. Motors: index 121–123 | middle 131–133 | thumb 111–114.
+# MIXED-IK mode (10-DoF Ditto leader: index + middle + thumb, current mode):
+#   - INDEX  (121/122/123): IK position + measured Sharpa joint-current force
+#   - MIDDLE (131/132/133): same as index (IK + measured)
+#   - THUMB  (111/112/113/114): IK position + tactile force
+#
+# Extends ditto_hand_mixed_ik.yaml to 3 fingers. Middle mirrors index for both
+# current_control and control mode; thumb unchanged from the 2-finger mixed-ik
+# config. Motor order matches DITTO_3F_LEADER_MOTOR_IDS.
 
-control_frequency: 250
-verbose: false
+control_frequency: 200
+verbose: true
 show_current_breakdown: false
-show_perf: false  # to show loop frequency performance
+show_perf: false
 
 leader:
   mode: current
@@ -16,9 +22,10 @@ leader:
     current_command: 0
   joint_settings:
 
-  # < ----- INDEX ----- >
+  # < ----- INDEX (IK position, measured-current force) ----- >
+
   - motor_id: 121            # index_joint_0 -> Index MCP AA
-    plot_joint: true
+    plot_joint: false
     joint_settings:
       motor_model: XC330
     current_control:
@@ -33,44 +40,46 @@ leader:
       force_rendering_threshold_positive: 350
       force_rendering_threshold_negative: 350
       force_rendering_max_current: 50
+      command_rate_limit_mA_per_s: 200.0
+
   - motor_id: 122            # index_joint_1 -> Index MCP FE
-    plot_joint: true
+    plot_joint: false
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 30.0
+      force_rendering_damping_gain: 60.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 30
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.12
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_gain: 0.12
       force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 135
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 140 # 110
+      force_rendering_threshold_positive: 135
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 110
+      command_rate_limit_mA_per_s: 200.0
+
   - motor_id: 123            # index_joint_2 -> Index PIP
-    plot_joint: true
+    plot_joint: false
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 8.0
+      force_rendering_damping_gain: 60.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 45
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.18
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_gain: 0.18
       force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 125
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 120 # 90
+      force_rendering_threshold_positive: 125
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 90
+      command_rate_limit_mA_per_s: 200.0
 
-  # < ----- MIDDLE (same gains as index) ----- >
+  # < ----- MIDDLE (IK position, measured-current force — mirrors index) ----- >
+
   - motor_id: 131            # middle_joint_0 -> Middle MCP AA
     plot_joint: true
     joint_settings:
@@ -87,44 +96,46 @@ leader:
       force_rendering_threshold_positive: 350
       force_rendering_threshold_negative: 350
       force_rendering_max_current: 50
+      command_rate_limit_mA_per_s: 200.0
+
   - motor_id: 132            # middle_joint_1 -> Middle MCP FE
     plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 40.0
+      force_rendering_damping_gain: 70.0
       force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 30
+      force_rendering_damping_max_current: 45
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.12
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_gain: 0.12
       force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 135
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 140 # 110
+      force_rendering_threshold_positive: 135
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 110
+      command_rate_limit_mA_per_s: 200.0
+
   - motor_id: 133            # middle_joint_2 -> Middle PIP
     plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 8.0
+      force_rendering_damping_gain: 60.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 45
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.18
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_gain: 0.1
       force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 125
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 120 # 90
+      force_rendering_threshold_positive: 125
+      force_rendering_threshold_negative: 185
+      force_rendering_max_current: 90
+      command_rate_limit_mA_per_s: 200.0
 
-  # < ----- THUMB ----- >
+  # < ----- THUMB (IK position, tactile force) ----- >
+
   - motor_id: 111            # thumb_joint_0 (proximal)
     plot_joint: false
     joint_settings:
@@ -141,6 +152,7 @@ leader:
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 100
+
   - motor_id: 112            # thumb_joint_1
     plot_joint: false
     joint_settings:
@@ -157,6 +169,7 @@ leader:
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 110
+
   - motor_id: 113            # thumb_joint_2
     plot_joint: false
     joint_settings:
@@ -173,6 +186,7 @@ leader:
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 110
+
   - motor_id: 114            # thumb_joint_3 (distal)
     plot_joint: false
     joint_settings:
@@ -195,9 +209,18 @@ follower:
 
 control:
   fingers:
-    index:  {position: retarget, force: tactile}
-    middle: {position: retarget, force: tactile}
+    index:  {position: retarget, force: measured}
+    middle: {position: retarget, force: measured}
     thumb:  {position: retarget, force: tactile}
+  joint_map:
+    index:
+    - {ditto_joint: index_joint_0, sharpa_joint: right_index_MCP_AA, scale: 1.0}
+    - {ditto_joint: index_joint_1, sharpa_joint: right_index_MCP_FE, scale: 1.0}
+    - {ditto_joint: index_joint_2, sharpa_joint: right_index_PIP, scale: 1.0}
+    middle:
+    - {ditto_joint: middle_joint_0, sharpa_joint: right_middle_MCP_AA, scale: 1.0}
+    - {ditto_joint: middle_joint_1, sharpa_joint: right_middle_MCP_FE, scale: 1.0}
+    - {ditto_joint: middle_joint_2, sharpa_joint: right_middle_PIP, scale: 1.0}
 
 force_render:
   joints:

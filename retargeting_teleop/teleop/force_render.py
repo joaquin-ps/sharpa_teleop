@@ -280,12 +280,16 @@ class RetargetForceRenderTeleop:
                 "show_current_breakdown", config.get("show_current_breakdown", False)
             )
         )
+        # Periodic [perf] / [perf:worker] Hz summaries (overrun warnings always print).
+        self.show_perf = bool(
+            config.hand_config.get("show_perf", config.get("show_perf", True))
+        )
 
         leader_cfg = config.hand_config.leader
         if leader_cfg.mode != "current":
             raise ValueError(
                 "RetargetForceRenderTeleop requires leader mode 'current', "
-                f"got {leader_cfg.mode!r} (use hand_config=ditto_index_force_render)."
+                f"got {leader_cfg.mode!r} (use hand_config=ditto_2f_tactile)."
             )
         self.leader_chain = list(leader_cfg.motor_ids)
         self._validate_leader_motors()
@@ -961,7 +965,10 @@ class RetargetForceRenderTeleop:
 
                 # Periodic summary roughly once per second.
                 if win_n >= self.control_frequency:
-                    self._print_perf_summary(win_n, win_work, win_period, win_work_max)
+                    if self.show_perf:
+                        self._print_perf_summary(
+                            win_n, win_work, win_period, win_work_max
+                        )
                     win_n = 0
                     win_work = win_period = win_work_max = 0.0
 

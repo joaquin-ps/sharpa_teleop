@@ -1,57 +1,29 @@
 # @package hand_config
 #
-# Ditto thumb leader in CURRENT mode, force rendered from the Sharpa fingertip
-# TACTILE sensor (not the Jᵀ torque estimate). Motors 111/112/113/114 == DITTO
-# thumb_joint_0/1/2/3.
+# Ditto index leader in CURRENT mode, force rendered from the Sharpa fingertip
+# TACTILE sensor (not the Jᵀ torque estimate). Motors 121/122/123 == DITTO
+# index_joint_0/1/2 (MCP AA, MCP flex, PIP).
 #
-# Separate tuning surface from ditto_thumb_force_render: the F6 sensor reports the
-# real contact force (N), a different scale/noise than the estimate, so gains /
-# thresholds / torque_to_mA are tuned independently here. Starts conservative.
+# Tactile is a separate tuning surface from ditto_index_force_render: the F6
+# sensor reports the real contact force (N), which is typically cleaner and a
+# different magnitude than the estimate, so gains / thresholds / torque_to_mA are
+# tuned independently here. Starts conservative (low gains) — bump gradually.
 
 control_frequency: 200
 verbose: true
 show_current_breakdown: false
+show_perf: false
 
 leader:
   mode: current
-  motor_ids: [111, 112, 113, 114]
+  motor_ids: [121, 122, 123]
   general_settings:
     current_limit: 1400
     current_command: 0
   joint_settings:
-  - motor_id: 111            # thumb_joint_0 (proximal / CMC-like): heaviest, gentlest
-    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 0.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.2
-      force_rendering_alpha: 0.3
-      force_rendering_threshold_positive: 0
-      force_rendering_threshold_negative: 0
-      force_rendering_max_current: 110
-  - motor_id: 112            # thumb_joint_1
-    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 0.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.3
-      force_rendering_alpha: 0.3
-      force_rendering_threshold_positive: 0
-      force_rendering_threshold_negative: 0
-      force_rendering_max_current: 110
-  - motor_id: 113            # thumb_joint_2
+
+  # Index MCP AA
+  - motor_id: 121
     plot_joint: true   # plotting tools (force_plot.py) skip joints set false
     joint_settings:
       motor_model: XC330
@@ -63,11 +35,31 @@ leader:
       enable_force_rendering: true
       gradual_rendering: true
       force_rendering_gain: 0.2
-      force_rendering_alpha: 0.3
+      force_rendering_alpha: 0.2
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 80
-  - motor_id: 114            # thumb_joint_3 (distal / IP-like): lightest deadband
+
+  # Index MCP flex
+  - motor_id: 122
+    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+
+  # Index PIP
+  - motor_id: 123
     plot_joint: true   # plotting tools (force_plot.py) skip joints set false
     joint_settings:
       motor_model: XC330
@@ -78,11 +70,11 @@ leader:
       force_rendering_damping_max_current: 30
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.2
-      force_rendering_alpha: 0.3
+      force_rendering_gain: 0.3
+      force_rendering_alpha: 0.2
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
-      force_rendering_max_current: 70
+      force_rendering_max_current: 110
 
 follower:
   mode: none
@@ -90,24 +82,22 @@ follower:
 # Per-finger control mode (the single source of truth for what each finger does):
 #   position: retarget (IK) | joint (direct leader→Sharpa joint map)
 #   force:    measured (Sharpa joint current) | estimate | tactile | mix
-# This config: thumb driven by IK, force from the fingertip tactile F6 sensor.
+# This config: index driven by IK, force from the fingertip tactile F6 sensor.
 control:
   fingers:
-    thumb: {position: retarget, force: tactile}
+    index: {position: retarget, force: tactile}
 
 # Per-motor force-rendering tuning: joint torque (Nm) → synthetic current (mA).
-# Tune torque_to_mA / torque_filter_alpha to the sensor scale/noise.
+# Tune torque_to_mA / torque_filter_alpha to the sensor scale/noise (tactile is
+# cleaner, so a lighter filter is usually fine).
 force_render:
   joints:
-  - motor_id: 111
+  - motor_id: 121
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2
-  - motor_id: 112
+  - motor_id: 122
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2
-  - motor_id: 113
-    torque_to_mA: 1000.0
-    torque_filter_alpha: 0.2
-  - motor_id: 114
+  - motor_id: 123
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2

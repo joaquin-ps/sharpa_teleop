@@ -1,29 +1,29 @@
 # @package hand_config
 #
-# Ditto index leader in CURRENT mode, force rendered from the Sharpa fingertip
-# TACTILE sensor (not the Jᵀ torque estimate). Motors 121/122/123 == DITTO
-# index_joint_0/1/2 (MCP AA, MCP flex, PIP).
+# Ditto middle finger leader in CURRENT mode, force rendered from the Sharpa
+# middle fingertip TACTILE sensor. Motors 131/132/133 == middle_joint_0/1/2
+# (MCP AA, MCP flex, PIP).
 #
-# Tactile is a separate tuning surface from ditto_index_force_render: the F6
-# sensor reports the real contact force (N), which is typically cleaner and a
-# different magnitude than the estimate, so gains / thresholds / torque_to_mA are
-# tuned independently here. Starts conservative (low gains) — bump gradually.
+# Per-joint tuning mirrors ditto_index_tactile.yaml (same gains / torque_to_mA).
 
 control_frequency: 200
 verbose: true
 show_current_breakdown: false
+show_perf: false
 
 leader:
   mode: current
-  motor_ids: [121, 122, 123]
+  # pos_vel: hardware velocity for force-rendering damping without reading present current.
+  sync_read_mode: pos_vel
+  motor_ids: [131, 132, 133]
   general_settings:
     current_limit: 1400
     current_command: 0
   joint_settings:
 
-  # Index MCP AA
-  - motor_id: 121
-    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+  # Middle MCP AA
+  - motor_id: 131
+    plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
@@ -39,9 +39,9 @@ leader:
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 80
 
-  # Index MCP flex
-  - motor_id: 122
-    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+  # Middle MCP flex
+  - motor_id: 132
+    plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
@@ -57,9 +57,9 @@ leader:
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 110
 
-  # Index PIP
-  - motor_id: 123
-    plot_joint: true   # plotting tools (force_plot.py) skip joints set false
+  # Middle PIP
+  - motor_id: 133
+    plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
@@ -78,25 +78,18 @@ leader:
 follower:
   mode: none
 
-# Per-finger control mode (the single source of truth for what each finger does):
-#   position: retarget (IK) | joint (direct leader→Sharpa joint map)
-#   force:    measured (Sharpa joint current) | estimate | tactile | mix
-# This config: index driven by IK, force from the fingertip tactile F6 sensor.
 control:
   fingers:
-    index: {position: retarget, force: tactile}
+    middle: {position: retarget, force: tactile}
 
-# Per-motor force-rendering tuning: joint torque (Nm) → synthetic current (mA).
-# Tune torque_to_mA / torque_filter_alpha to the sensor scale/noise (tactile is
-# cleaner, so a lighter filter is usually fine).
 force_render:
   joints:
-  - motor_id: 121
+  - motor_id: 131
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2
-  - motor_id: 122
+  - motor_id: 132
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2
-  - motor_id: 123
+  - motor_id: 133
     torque_to_mA: 1000.0
     torque_filter_alpha: 0.2

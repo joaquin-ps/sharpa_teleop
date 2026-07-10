@@ -149,13 +149,12 @@ them (e.g. IK position with joint-level force).
 
 ---
 
-## 6. Combined modes (example configs)
+## 6. Combined modes (top-level configs)
 
-| Config | Index position | Index force | Thumb position | Thumb force |
+| Config | Index / middle position | Index / middle force | Thumb position | Thumb force |
 |---|---|---|---|---|
-| `ditto_hand_tactile` | retargeting | retargeting (tactile) | retargeting | retargeting (tactile) |
-| `ditto_hand_mixed` | joint-level | joint-level (measured) | retargeting | retargeting (tactile) |
-| `ditto_hand_mixed_ik` | retargeting | joint-level (measured) | retargeting | retargeting (tactile) |
+| `ditto_2f_tactile` / `ditto_3f_tactile` | retarget | tactile | retarget | tactile |
+| `ditto_2f_blend` / `ditto_3f_blend` | joint | 50% tactile + 50% measured | retarget | 65% tactile + 35% estimate |
+| `ditto_2f_leader_only` / `ditto_3f_leader_only` | — | none | — | none |
 
-Single-finger tuning configs also exist (`ditto_index_*`, `ditto_thumb_*`) for the
-index (estimate or tactile) and thumb (estimate or tactile).
+Per-finger tuning YAMLs live under `conf/hand_config/fingers/`; older variants under `old/`.

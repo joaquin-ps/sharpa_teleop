@@ -13,11 +13,11 @@ Columns:
                  own axis so the (often small) haptic signal stays readable
 
 Which finger(s) appear is inferred from the leader motors in the hand_config
-(``ditto_index_force_render`` default, or ``ditto_thumb_force_render``).
+(default ``ditto_2f_tactile``).
 
 Usage (from sharpa_teleop repo root):
     python retargeting_teleop/viz/force_plot.py
-    python retargeting_teleop/viz/force_plot.py hand_config=ditto_thumb_force_render
+    python retargeting_teleop/viz/force_plot.py hand_config=ditto_3f_tactile
     python retargeting_teleop/viz/force_plot.py u2d2.usb_port=/dev/ttyUSB0
 
 Control mode is config-only (``hand_config.control.fingers``). The Sharpa
@@ -62,7 +62,7 @@ from teleop.force_render import (  # noqa: E402
 
 _MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
 
-DEFAULT_HAND_CONFIG = "ditto_index_force_render"
+DEFAULT_HAND_CONFIG = "ditto_2f_tactile"
 
 
 @dataclass

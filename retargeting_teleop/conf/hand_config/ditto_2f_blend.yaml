@@ -1,16 +1,14 @@
 # @package hand_config
 #
 # 2-finger Ditto (index + thumb) with blended force sources.
-# Extends ditto_hand_mixed_sources_rate.yaml.
-#
-#   index: 50% tactile + 50% measured Sharpa joint current
-#   thumb: 65% tactile + 35% Jᵀ estimate
-#
-# Motors: index 121–123 | thumb 111–114 (DITTO_LEADER_MOTOR_IDS).
+#   index: joint position, 50% tactile + 50% measured
+#   thumb: retarget IK,    65% tactile + 35% Jᵀ estimate
+# Motors: index 121–123 | thumb 111–114.
 
 control_frequency: 250
 verbose: true
 show_current_breakdown: false
+show_perf: false  # to show loop frequency performance
 
 leader:
   mode: current

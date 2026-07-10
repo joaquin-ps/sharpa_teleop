@@ -1,194 +1,219 @@
 # @package hand_config
 #
-# 3-finger Ditto (index + middle + thumb): retarget IK + tactile force on all fingers.
-# Middle joint gains match index. Motors: index 121–123 | middle 131–133 | thumb 111–114.
+# Same as ditto_3f_tactile but with command-side rate limiting on index + thumb
+# (net leader current after force rendering + damping). Rate limits in current_control.
+#
+# Motor order matches DITTO_3F_LEADER_MOTOR_IDS:
+#   index:  121, 122, 123  |  middle: 131, 132, 133  |  thumb: 111–114
 
-control_frequency: 250
-verbose: false
+control_frequency: 200
+verbose: true
 show_current_breakdown: false
-show_perf: false  # to show loop frequency performance
+show_perf: false
 
 leader:
   mode: current
+  sync_read_mode: pos_vel
   motor_ids: [121, 122, 123, 131, 132, 133, 111, 112, 113, 114]
   general_settings:
     current_limit: 1400
     current_command: 0
   joint_settings:
 
-  # < ----- INDEX ----- >
-  - motor_id: 121            # index_joint_0 -> Index MCP AA
+  # < ----- INDEX (tactile) ----- >
+
+  - motor_id: 121
     plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 70.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.1
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive: 350
-      force_rendering_threshold_negative: 350
-      force_rendering_max_current: 50
-  - motor_id: 122            # index_joint_1 -> Index MCP FE
-    plot_joint: true
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 30.0
+      force_rendering_damping_gain: 0.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 30
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.12
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 135
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 140 # 110
-  - motor_id: 123            # index_joint_2 -> Index PIP
-    plot_joint: true
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 8.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 45
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.18
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 125
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 120 # 90
-
-  # < ----- MIDDLE (same gains as index) ----- >
-  - motor_id: 131            # middle_joint_0 -> Middle MCP AA
-    plot_joint: true
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 70.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.1
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive: 350
-      force_rendering_threshold_negative: 350
-      force_rendering_max_current: 50
-  - motor_id: 132            # middle_joint_1 -> Middle MCP FE
-    plot_joint: true
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 40.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 30
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.12
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 135
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 140 # 110
-  - motor_id: 133            # middle_joint_2 -> Middle PIP
-    plot_joint: true
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 8.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 45
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.40 # 0.18
-      enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 1.5
-      force_rendering_alpha: 0.05
-      force_rendering_threshold_positive:  0 # 125
-      force_rendering_threshold_negative:  0 # 185
-      force_rendering_max_current: 120 # 90
-
-  # < ----- THUMB ----- >
-  - motor_id: 111            # thumb_joint_0 (proximal)
-    plot_joint: false
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 20.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
       enable_force_rendering: true
       gradual_rendering: true
       force_rendering_gain: 0.2
-      force_rendering_alpha: 0.1
+      force_rendering_alpha: 0.2
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
-      force_rendering_max_current: 100
-  - motor_id: 112            # thumb_joint_1
-    plot_joint: false
+      force_rendering_max_current: 80
+      command_rate_limit_mA_per_s: 5000.0
+
+  - motor_id: 122
+    plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 25.0
+      force_rendering_damping_gain: 0.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 35
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.15
-      force_rendering_alpha: 0.1
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 110
-  - motor_id: 113            # thumb_joint_2
-    plot_joint: false
+      command_rate_limit_mA_per_s: 5000.0
+
+  - motor_id: 123
+    plot_joint: true
     joint_settings:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 25.0
-      force_rendering_damping_velocity_threshold: 0.0
-      force_rendering_damping_max_current: 35
-      enable_force_rendering: true
-      gradual_rendering: true
-      force_rendering_gain: 0.15
-      force_rendering_alpha: 0.1
-      force_rendering_threshold_positive: 0
-      force_rendering_threshold_negative: 0
-      force_rendering_max_current: 110
-  - motor_id: 114            # thumb_joint_3 (distal)
-    plot_joint: false
-    joint_settings:
-      motor_model: XC330
-    current_control:
-      enable_force_rendering_damping: true
-      force_rendering_damping_gain: 20.0
+      force_rendering_damping_gain: 0.0
       force_rendering_damping_velocity_threshold: 0.0
       force_rendering_damping_max_current: 30
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.15
-      force_rendering_alpha: 0.1
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+      command_rate_limit_mA_per_s: 5000.0
+
+  # < ----- MIDDLE (tactile) ----- >
+
+  - motor_id: 131
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: -20
+      max_angle_deg: 20
+      direction: 1
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 80
+
+  - motor_id: 132
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: -10
+      max_angle_deg: 80
+      direction: 1
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+
+  - motor_id: 133
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+      zero_position: 2048
+      min_angle_deg: 0
+      max_angle_deg: 80
+      direction: 1
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+
+  # < ----- THUMB (tactile) ----- >
+
+  - motor_id: 111
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+      command_rate_limit_mA_per_s: 5000.0
+
+  - motor_id: 112
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+      command_rate_limit_mA_per_s: 5000.0
+
+  - motor_id: 113
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.2
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 80
+      command_rate_limit_mA_per_s: 5000.0
+
+  - motor_id: 114
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 0.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.2
       force_rendering_threshold_positive: 0
       force_rendering_threshold_negative: 0
       force_rendering_max_current: 70
+      command_rate_limit_mA_per_s: 5000.0
 
 follower:
   mode: none

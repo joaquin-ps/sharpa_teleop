@@ -1,16 +1,14 @@
 # @package hand_config
 #
 # 3-finger Ditto (index + middle + thumb) with blended force sources.
-# Extends ditto_hand_mixed_sources_rate.yaml; middle uses softer measured blend.
-#
-#   index / middle: 50% tactile + 50% measured Sharpa joint current
-#   thumb:          65% tactile + 35% Jᵀ estimate (estimate noisier in 3f IK)
-#
-# Motors: index 121–123 | middle 131–133 | thumb 111–114 (DITTO_3F_LEADER_MOTOR_IDS).
+#   index / middle: joint position, 50% tactile + 50% measured
+#   thumb:          retarget IK,    65% tactile + 35% Jᵀ estimate
+# Motors: index 121–123 | middle 131–133 | thumb 111–114.
 
-control_frequency: 200
+control_frequency: 250
 verbose: true
 show_current_breakdown: false
+show_perf: false  # to show loop frequency performance
 
 leader:
   mode: current
@@ -24,7 +22,7 @@ leader:
   # < ----- INDEX (tactile + measured) ----- >
 
   - motor_id: 121
-    plot_joint: true
+    plot_joint: false
     joint_settings:
       motor_model: XC330
     current_control:
@@ -34,14 +32,14 @@ leader:
       force_rendering_damping_max_current: 30
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.2
+      force_rendering_gain: 0.3 # 0.2
       enable_force_rendering_adaptive_gain: true
       force_rendering_adaptive_velocity_coeff: 2.0
       force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 15
       force_rendering_threshold_negative: 15
       force_rendering_max_current: 80
-      command_rate_limit_mA_per_s: 500.0
+      command_rate_limit_mA_per_s: 300.0
 
   - motor_id: 122
     plot_joint: true
@@ -49,18 +47,18 @@ leader:
       motor_model: XC330
     current_control:
       enable_force_rendering_damping: true
-      force_rendering_damping_gain: 40.0
+      force_rendering_damping_gain: 70.0
       force_rendering_damping_velocity_threshold: 0.3
       force_rendering_damping_max_current: 55
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.4
+      force_rendering_gain: 0.4 # 0.4
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 2.0
-      force_rendering_alpha: 0.3
-      force_rendering_threshold_positive: 15
-      force_rendering_threshold_negative: 15
-      force_rendering_max_current: 140
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.5
+      force_rendering_threshold_positive: 35
+      force_rendering_threshold_negative: 35
+      force_rendering_max_current: 200 # 160
       command_rate_limit_mA_per_s: 500.0
 
   - motor_id: 123
@@ -74,19 +72,19 @@ leader:
       force_rendering_damping_max_current: 50
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.4
+      force_rendering_gain: 0.6 # 0.4
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 2.0
-      force_rendering_alpha: 0.3
-      force_rendering_threshold_positive: 15
-      force_rendering_threshold_negative: 15
-      force_rendering_max_current: 120
-      command_rate_limit_mA_per_s: 500.0
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.5
+      force_rendering_threshold_positive: 50
+      force_rendering_threshold_negative: 50
+      force_rendering_max_current: 160 # 120
+      command_rate_limit_mA_per_s: 400.0
 
-  # < ----- MIDDLE (tactile + measured — softer than index; measured is noisier) ----- >
+  # < ----- MIDDLE (tactile + measured — matches index joint tuning) ----- >
 
   - motor_id: 131
-    plot_joint: true
+    plot_joint: false
     joint_settings:
       motor_model: XC330
     current_control:
@@ -96,14 +94,14 @@ leader:
       force_rendering_damping_max_current: 35
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.1
+      force_rendering_gain: 0.2 # 0.2
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.1
-      force_rendering_threshold_positive: 80
-      force_rendering_threshold_negative: 80
-      force_rendering_max_current: 50
-      command_rate_limit_mA_per_s: 250.0
+      force_rendering_adaptive_velocity_coeff: 2.0
+      force_rendering_alpha: 0.3
+      force_rendering_threshold_positive: 15
+      force_rendering_threshold_negative: 15
+      force_rendering_max_current: 80
+      command_rate_limit_mA_per_s: 300.0
 
   - motor_id: 132
     plot_joint: true
@@ -113,17 +111,17 @@ leader:
       enable_force_rendering_damping: true
       force_rendering_damping_gain: 70.0
       force_rendering_damping_velocity_threshold: 0.3
-      force_rendering_damping_max_current: 45
+      force_rendering_damping_max_current: 55
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.12
+      force_rendering_gain: 0.4 # 0.4
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.1
-      force_rendering_threshold_positive: 60
-      force_rendering_threshold_negative: 80
-      force_rendering_max_current: 90
-      command_rate_limit_mA_per_s: 250.0
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
+      force_rendering_threshold_positive: 35
+      force_rendering_threshold_negative: 35
+      force_rendering_max_current: 200 # 160
+      command_rate_limit_mA_per_s: 500.0
 
   - motor_id: 133
     plot_joint: true
@@ -133,17 +131,17 @@ leader:
       enable_force_rendering_damping: true
       force_rendering_damping_gain: 60.0
       force_rendering_damping_velocity_threshold: 1.0
-      force_rendering_damping_max_current: 45
+      force_rendering_damping_max_current: 50
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.1
+      force_rendering_gain: 0.6 # 0.4
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.1
-      force_rendering_threshold_positive: 60
-      force_rendering_threshold_negative: 80
-      force_rendering_max_current: 110
-      command_rate_limit_mA_per_s: 250.0
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
+      force_rendering_threshold_positive: 50
+      force_rendering_threshold_negative: 50
+      force_rendering_max_current: 160
+      command_rate_limit_mA_per_s: 400.0
 
   # < ----- THUMB (tactile + estimate — softer blend for 3f stability) ----- >
 
@@ -158,14 +156,14 @@ leader:
       force_rendering_damping_max_current: 35
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.3
+      force_rendering_gain: 0.6
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.15
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 500
       force_rendering_threshold_negative: 1000
       force_rendering_max_current: 140
-      command_rate_limit_mA_per_s: 300.0
+      command_rate_limit_mA_per_s: 500.0
 
   - motor_id: 112
     plot_joint: false
@@ -180,12 +178,12 @@ leader:
       gradual_rendering: true
       force_rendering_gain: 0.35
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.15
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 400
       force_rendering_threshold_negative: 3000
       force_rendering_max_current: 100
-      command_rate_limit_mA_per_s: 300.0
+      command_rate_limit_mA_per_s: 500.0
 
   - motor_id: 113
     plot_joint: false
@@ -196,16 +194,16 @@ leader:
       force_rendering_damping_gain: 45.0
       force_rendering_damping_velocity_threshold: 0.25
       force_rendering_damping_max_current: 30
-      enable_force_rendering: true
+      enable_force_rendering: false
       gradual_rendering: true
       force_rendering_gain: 0.15
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.15
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 500
       force_rendering_threshold_negative: 2000
       force_rendering_max_current: 70
-      command_rate_limit_mA_per_s: 300.0
+      command_rate_limit_mA_per_s: 500.0
 
   - motor_id: 114
     plot_joint: false
@@ -218,14 +216,14 @@ leader:
       force_rendering_damping_max_current: 30
       enable_force_rendering: true
       gradual_rendering: true
-      force_rendering_gain: 0.15
+      force_rendering_gain: 0.35
       enable_force_rendering_adaptive_gain: true
-      force_rendering_adaptive_velocity_coeff: 3.0
-      force_rendering_alpha: 0.15
+      force_rendering_adaptive_velocity_coeff: 5.0
+      force_rendering_alpha: 0.3
       force_rendering_threshold_positive: 500
       force_rendering_threshold_negative: 1500
       force_rendering_max_current: 65
-      command_rate_limit_mA_per_s: 300.0
+      command_rate_limit_mA_per_s: 500.0
 
 follower:
   mode: none
@@ -233,15 +231,15 @@ follower:
 control:
   fingers:
     index:
-      position: retarget
+      position: joint
       force:
-        tactile: 0.6
-        measured: 0.4
-    middle:
-      position: retarget
+        tactile: 0.5
+        measured: 0.5
+    middle: 
+      position: joint
       force:
-        tactile: 0.65
-        measured: 0.35
+        tactile: 0.5
+        measured: 0.5
     thumb:
       position: retarget
       force:
@@ -260,11 +258,11 @@ control:
 force_render:
   modality_filters:
     tactile:
-      torque_filter_alpha: 0.25
+      torque_filter_alpha: 0.05 # 0.25
     measured:
-      torque_filter_alpha: 0.08
+      torque_filter_alpha: 0.05 # 0.08
     estimate:
-      torque_filter_alpha: 0.12
+      torque_filter_alpha: 0.05 # 0.12
   joints:
   - motor_id: 121
     torque_to_mA: 1000.0
@@ -278,56 +276,26 @@ force_render:
   - motor_id: 131
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      measured:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 132
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      measured:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 133
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      measured:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 111
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      estimate:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 112
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      estimate:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 113
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      estimate:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
   - motor_id: 114
     torque_to_mA: 1000.0
     torque_filter_alpha: 1.0
-    modality_filters:
-      estimate:
-        torque_filter_alpha: 0.08
-      tactile:
-        torque_filter_alpha: 0.25
+    # modality_filters:
+    #   estimate:
+    #     torque_filter_alpha: 0.08
+    #   tactile:
+    #     torque_filter_alpha: 0.25

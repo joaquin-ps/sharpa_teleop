@@ -1,10 +1,13 @@
 # @package hand_config
 #
-# Ditto 3-finger leader only: read encoders, no follower, no force feedback.
-# Motor order matches retargeting DITTO_3F_LEADER_JOINT_NAMES:
-#   index: 121, 122, 123  |  middle: 131, 132, 133  |  thumb: 111, 112, 113, 114
+# 3-finger Ditto leader only (torque off): encoders, no force feedback.
+# Motors: index 121–123 | middle 131–133 | thumb 111–114. Default for --3f viewer / teleop.
 
 control_frequency: 200
+
+verbose: false
+show_current_breakdown: false
+show_perf: false  # to show loop frequency performance
 
 leader:
   mode: torque_off

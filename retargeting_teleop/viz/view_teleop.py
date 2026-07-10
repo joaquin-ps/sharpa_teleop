@@ -15,7 +15,7 @@ Usage (from sharpa_teleop repo root):
     python retargeting_teleop/viz/view_teleop.py --ditto             # ditto only
     python retargeting_teleop/viz/view_teleop.py --sharpa            # sharpa only
     python retargeting_teleop/viz/view_teleop.py --ditto --sharpa --3f
-    python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_hand_tactile
+    python retargeting_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_2f_tactile
 
 From retargeting_teleop/ package dir:
     python viz/view_teleop.py --ditto --sharpa

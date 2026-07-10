@@ -17,6 +17,7 @@
 control_frequency: 200
 verbose: true
 show_current_breakdown: false
+show_perf: false
 
 leader:
   mode: current

@@ -9,3 +9,4 @@ defaults:
 control_frequency: 200
 verbose: false
 show_current_breakdown: false
+show_perf: false
