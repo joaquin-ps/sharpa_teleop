@@ -1,0 +1,12 @@
+# Motor-keyed tactile -> vibration mapping (see HAPTICS.md)
+plot_motor: 1
+motors:
+  1:
+    finger: index
+    tactile_channel: 3
+    rising_min: 0.05
+    falling_min: 0.3
+    signal_max: 3.0
+    direction_window: 5
+    direction_eps: 0.05
+    fz_tau_s: 0.01

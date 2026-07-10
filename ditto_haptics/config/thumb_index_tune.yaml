@@ -1,0 +1,20 @@
+motors:
+  0:
+    finger: thumb
+    tactile_channel: 4
+    rising_min: 0.05
+    falling_min: 0.3
+    signal_max: 3.0
+    direction_eps: 0.05
+    direction_window: 5
+    fz_tau_s: 0.01
+  1:
+    finger: index
+    tactile_channel: 3
+    rising_min: 0.05
+    falling_min: 0.3
+    signal_max: 1.0
+    direction_eps: 0.05
+    direction_window: 5
+    fz_tau_s: 0.01
+plot_motor: 0
