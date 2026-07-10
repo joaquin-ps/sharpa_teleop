@@ -26,6 +26,10 @@ Tactile/mix sources auto-enable the Sharpa follower; set
 ``force_render.calibrate: true`` / ``force_render.debug: true`` in the config to
 calibrate tactile on startup / print raw F6 vs base force.
 
+Optional vibration haptics (``ditto_haptics``) share the follower's SharpaHand
+and tactile cache — use ``--haptics-config`` with a motor YAML from
+``ditto_haptics/config/``.
+
 Examples:
     # run a config as-is (tactile config auto-enables Sharpa):
     python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile
@@ -33,6 +37,9 @@ Examples:
     python retargeting_teleop/run_force_render.py hand_config=ditto_middle_tactile
     # explicitly add the Sharpa hand for an estimate config:
     python retargeting_teleop/run_force_render.py hand_config=ditto_index_force_render --sharpa
+    # force render + vibration haptics (unified teleop):
+    python retargeting_teleop/run_force_render.py hand_config=ditto_2f_mixed_sources_tune \
+        --haptics-config ../ditto_haptics/config/thumb_index.yaml
     # raise a per-joint gain at runtime:
     python retargeting_teleop/run_force_render.py hand_config=ditto_hand_tactile \
         hand_config.leader.joint_settings.1.current_control.force_rendering_gain=0.05
@@ -44,12 +51,14 @@ Run ``viz/force_plot.py`` in a second terminal for the live diagnostic plot.
 from __future__ import annotations
 
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 _PKG = Path(__file__).resolve().parent
 _REPO = _PKG.parent
-for _path in (_PKG, _REPO):
+_HAPTICS_DIR = _REPO / "ditto_haptics"
+for _path in (_PKG, _REPO, _HAPTICS_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
@@ -63,12 +72,20 @@ from teleop.force_render import (  # noqa: E402
 
 DEFAULT_HAND_CONFIG = "ditto_index_force_render"
 DEFAULT_RETARGET_HZ = 40.0
+DEFAULT_VIB_PORT = "/dev/ttyACM0"
+DEFAULT_VIB_BAUD = 115200
+_IDENTIFY_LEVEL = 7
+_IDENTIFY_DURATION_S = 0.1
 
 
 @dataclass
 class RunFlags:
     sharpa_hardware: bool = False
     retarget_hz: float = DEFAULT_RETARGET_HZ
+    haptics_config: Path | None = None
+    vib_port: str = DEFAULT_VIB_PORT
+    vib_baud: int = DEFAULT_VIB_BAUD
+    haptics_identify: bool = True
 
 
 def _strip_run_flags() -> RunFlags:
@@ -82,6 +99,20 @@ def _strip_run_flags() -> RunFlags:
             flags.retarget_hz = float(next(args))
         elif arg.startswith("--retarget-rate="):
             flags.retarget_hz = float(arg.split("=", 1)[1])
+        elif arg == "--haptics-config":
+            flags.haptics_config = Path(next(args))
+        elif arg.startswith("--haptics-config="):
+            flags.haptics_config = Path(arg.split("=", 1)[1])
+        elif arg == "--vib-port":
+            flags.vib_port = next(args)
+        elif arg.startswith("--vib-port="):
+            flags.vib_port = arg.split("=", 1)[1]
+        elif arg == "--vib-baud":
+            flags.vib_baud = int(next(args))
+        elif arg.startswith("--vib-baud="):
+            flags.vib_baud = int(arg.split("=", 1)[1])
+        elif arg == "--no-haptics-identify":
+            flags.haptics_identify = False
         else:
             remaining.append(arg)
     sys.argv = remaining
@@ -96,6 +127,57 @@ def _build_overrides(cli_args: list[str]) -> list[str]:
     return overrides + list(cli_args)
 
 
+def _resolve_haptics_config(path: Path) -> Path:
+    if path.is_absolute():
+        resolved = path
+    else:
+        candidates = [
+            path,
+            _PKG / path,
+            _HAPTICS_DIR / path,
+            _HAPTICS_DIR / "config" / path.name,
+        ]
+        resolved = next((p for p in candidates if p.exists()), path)
+    if not resolved.exists():
+        raise FileNotFoundError(f"haptics config not found: {path}")
+    return resolved
+
+
+def _identify_vib_motors(vib, motor_ids: list[int]) -> None:
+    print("Identifying vibration motors...")
+    for motor_id in motor_ids:
+        print(f"  vibration motor {motor_id}")
+        vib.set_motor_level(motor_id, _IDENTIFY_LEVEL)
+        time.sleep(_IDENTIFY_DURATION_S)
+        vib.set_motor_level(motor_id, None)
+        time.sleep(0.2)
+
+
+def _attach_haptics(controller: RetargetForceRenderTeleop, flags: RunFlags) -> object | None:
+    if flags.haptics_config is None:
+        return None
+
+    from ditto_haptics import DittoHaptics, HapticsConfig  # noqa: E402
+    from vibration_motors.vib_serial import VibMotor  # noqa: E402
+
+    follower = controller.sharpa_follower
+    if follower is None or follower.sharpa_hand is None:
+        raise RuntimeError(
+            "--haptics-config needs the Sharpa follower "
+            "(use a tactile/mixed hand_config or pass --sharpa)"
+        )
+
+    config_path = _resolve_haptics_config(flags.haptics_config)
+    haptics_cfg = HapticsConfig.load(config_path)
+    vib = VibMotor(flags.vib_port, baud=flags.vib_baud)
+    if flags.haptics_identify:
+        _identify_vib_motors(vib, haptics_cfg.motor_ids())
+    haptics = DittoHaptics.from_sharpa_hand(haptics_cfg, vib, follower.sharpa_hand)
+    controller.attach_haptics(haptics)
+    print(f"Vibration haptics loaded from {config_path}")
+    return vib
+
+
 def main() -> None:
     flags = _strip_run_flags()
     overrides = _build_overrides(sys.argv[1:])
@@ -104,7 +186,7 @@ def main() -> None:
 
     # Control mode is config-only (hand_config.control.fingers). Tactile/mix
     # sources need real Sharpa contact data, so they auto-enable the follower.
-    need_sharpa = flags.sharpa_hardware or config_needs_tactile(cfg)
+    need_sharpa = flags.sharpa_hardware or config_needs_tactile(cfg) or flags.haptics_config
 
     sharpa_follower = None
     if need_sharpa:
@@ -119,12 +201,16 @@ def main() -> None:
         retarget_hz=flags.retarget_hz,
     )
 
+    vib = None
     try:
         controller.connect()
+        vib = _attach_haptics(controller, flags)
         controller.setup_motors()
         controller.start_control_loop()
     finally:
         controller.disconnect()
+        if vib is not None:
+            vib.close()
 
 
 if __name__ == "__main__":

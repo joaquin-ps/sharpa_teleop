@@ -67,6 +67,7 @@ from teleop.force_sources import (  # noqa: E402
 )
 
 if TYPE_CHECKING:
+    from ditto_haptics import DittoHaptics
     from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
 _MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
@@ -385,8 +386,13 @@ class RetargetForceRenderTeleop:
         self._retarget_thread: threading.Thread | None = None
         self._prev_switch_interval = sys.getswitchinterval()
         self._worker_perf_line: str | None = None
+        self._haptics: DittoHaptics | None = None
 
     # ----- setup -------------------------------------------------------------
+
+    def attach_haptics(self, haptics: "DittoHaptics") -> None:
+        """Wire tactile vibration haptics (uses the follower's SharpaHand)."""
+        self._haptics = haptics
 
     def _validate_leader_motors(self) -> None:
         for motor in self.leader_chain:
@@ -547,6 +553,9 @@ class RetargetForceRenderTeleop:
         self.leader_hand.setup_motors()
 
     def disconnect(self) -> None:
+        if self._haptics is not None:
+            self._haptics.stop()
+            self._haptics = None
         if self.leader_hand is not None:
             self.leader_hand.disconnect()
             self.leader_hand = None
@@ -861,6 +870,8 @@ class RetargetForceRenderTeleop:
                     t_est = time.perf_counter()
                     self._cached_torques = self._compute_cached_torques(ditto_q)
                     w_est += time.perf_counter() - t_est
+                    if self._haptics is not None:
+                        self._haptics.update()
 
             w_n += 1
             if w_n >= report_every:
@@ -921,6 +932,12 @@ class RetargetForceRenderTeleop:
         print("  Per-finger control mode (hand_config.control.fingers):")
         for finger in self._finger_modes:
             print(f"    {finger:<6s} {self._describe_finger(finger)}")
+        if self._haptics is not None:
+            motors = ", ".join(
+                f"m{m} ({c.finger})"
+                for m, c in sorted(self._haptics.config.motors.items())
+            )
+            print(f"  Vibration haptics: ON ({motors})")
         print(f"{bar}\n")
 
     def start_control_loop(self) -> None:
