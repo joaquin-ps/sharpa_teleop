@@ -1,4 +1,4 @@
-# 🤖 Sharpa Teleop
+# 🤖 DITTO Sharpa
 
 Two teleop stacks sharing `ditto` (Dynamixel leader) and `sharpa_controller` (Sharpa Wave), plus fingertip vibration haptics:
 
@@ -23,8 +23,8 @@ Two teleop stacks sharing `ditto` (Dynamixel leader) and `sharpa_controller` (Sh
 ### 1. Clone with submodules
 
 ```bash
-git clone --recurse-submodules git@github.com:joaquin-ps/sharpa_teleop.git
-cd sharpa_teleop
+git clone --recurse-submodules git@github.com:joaquin-ps/ditto_sharpa.git
+cd ditto_sharpa
 ```
 
 If you already cloned without submodules:
@@ -37,7 +37,7 @@ git submodule update --init --recursive
 
 ```bash
 conda env create -f environment.yml
-conda activate sharpa_ditto
+conda activate ditto_sharpa
 ```
 
 Requires **Python 3.10, 3.11, or 3.12** (matches the Sharpa Wave SDK Python bindings).
@@ -59,7 +59,7 @@ python -c "import sys; sys.path.insert(0, '/opt/sharpa-wave-sdk/python'); import
 From the **repository root** (`sharpa_teleop/`):
 
 ```bash
-conda activate sharpa_ditto
+conda activate ditto_sharpa
 
 # Retargeting core (imports + one IK step)
 python -c "

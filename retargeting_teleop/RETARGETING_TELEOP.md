@@ -7,7 +7,7 @@ map) and where the rendered **force** comes from (estimate, tactile, or the
 measured Sharpa joint current).
 
 Install + env: see the [repo README](../README.md). Run everything from the
-`sharpa_teleop/` repo root with `conda activate sharpa_ditto`. Before any real
+`sharpa_teleop/` repo root with `conda activate ditto_sharpa`. Before any real
 Ditto hardware: `dynamixel-port --latency-timer 1`.
 
 See also: [`docs/COMMANDS.md`](docs/COMMANDS.md) (copy-paste demo commands),

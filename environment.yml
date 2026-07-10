@@ -1,4 +1,4 @@
-name: sharpa_ditto
+name: ditto_sharpa
 channels:
   - conda-forge
   - defaults

@@ -9,7 +9,7 @@ Install and env setup: see the [repo README](../README.md).
 From the repo root (`sharpa_teleop/`):
 
 ```bash
-conda activate sharpa_ditto
+conda activate ditto_sharpa
 dynamixel-port --latency-timer 1   # before real hardware
 
 # 3-DoF index (motors 121, 122, 123)
