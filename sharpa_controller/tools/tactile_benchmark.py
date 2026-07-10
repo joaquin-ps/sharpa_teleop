@@ -2,7 +2,7 @@
 """Benchmark Sharpa fingertip tactile sampling.
 
 Standalone: talks to the Sharpa SDK directly (like read_tactile.py), no
-retargeting_teleop import. Measures, per channel:
+sharpa_teleop import. Measures, per channel:
 
   - poll_hz : how many fetch_tactile_frame() calls/sec we can do (our ceiling)
   - frame_hz: distinct device frames/sec (the sensor's true stream rate, from
@@ -13,9 +13,9 @@ Use the smallest frame_hz across the channels you care about as the safe max for
 the teleop tactile/force sampling rate (force_hz). Polling faster than frame_hz
 just re-reads the same frame.
 
-Usage (from anywhere):
-    python3 sharpa_teleop/sharpa_controller/tools/tactile_benchmark.py
-    python3 .../tactile_benchmark.py --duration 5 --fingers index,thumb --calibrate
+Usage (from the ditto_sharpa repo root):
+    python3 sharpa_controller/tools/tactile_benchmark.py
+    python3 sharpa_controller/tools/tactile_benchmark.py --duration 5 --fingers index,thumb --calibrate
 """
 
 import argparse

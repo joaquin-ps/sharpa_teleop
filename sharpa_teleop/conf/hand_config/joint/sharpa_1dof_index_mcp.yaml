@@ -1,0 +1,51 @@
+# @package hand_config
+# Index MCP flex only (motor 122) — staged bring-up.
+
+control_frequency: 200
+verbose: true
+show_current_breakdown: true
+
+leader:
+  mode: current
+  motor_ids:
+    - 122
+  general_settings:
+    current_limit: 1400
+    current_command: 0
+  joint_settings:
+    - motor_id: 122
+      plot_joint: true
+      joint_settings:
+        motor_model: XC330
+        zero_position: 2048
+        min_angle_deg: 0
+        max_angle_deg: 50
+        direction: 1
+      current_control:
+        enable_force_rendering_damping: true
+        force_rendering_damping_gain: 60.0
+        force_rendering_damping_velocity_threshold: 0.0
+        force_rendering_damping_max_current: 30
+        enable_force_rendering: true
+        gradual_rendering: true
+        force_rendering_gain: 0.22
+        force_rendering_alpha: 0.1
+        force_rendering_threshold_positive: 125
+        force_rendering_threshold_negative: 175
+        force_rendering_max_current: 150
+
+follower:
+  mode: none
+
+control:
+  fingers:
+    index: {position: joint, force: measured}
+  joint_map:
+    index:
+    - {ditto_joint: index_joint_1, sharpa_joint: right_index_MCP_FE, scale: 1.0}
+
+force_render:
+  joints:
+  - motor_id: 122
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2

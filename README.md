@@ -1,19 +1,18 @@
 # 🤖 DITTO Sharpa
 
-Two teleop stacks sharing `ditto` (Dynamixel leader) and `sharpa_controller` (Sharpa Wave), plus fingertip vibration haptics:
+Ditto leader → Sharpa Wave teleop (joint map and/or pad retargeting) plus
+fingertip vibration haptics:
 
 | Package | What it does |
 |---------|----------------|
-| **`retargeting_teleop/`** | Ditto → Sharpa pad retargeting + force rendering (2f / 3f) |
-| **`joint_teleop/`** | Direct joint-to-joint mapping with force feedback |
+| **`sharpa_teleop/`** | Ditto → Sharpa teleop: retarget IK and/or joint mapping + force rendering (2f / 3f) |
 | **`ditto_haptics/`** | Tactile Fz → vibration motors (standalone; embeddable in teleop loops) |
 
 ## 📑 Table of contents
 
 - [📦 Installation](#-installation)
 - [▶️ Usage](#️-usage)
-  - [🎯 Retargeting](#-retargeting)
-  - [🖐️ Joint teleop](#️-joint-teleop)
+  - [🎯 Teleop](#-teleop)
   - [📳 Haptics](#-haptics)
 - [📚 Documentation](#-documentation)
 - [🏗️ Layout](#️-layout)
@@ -56,34 +55,37 @@ python -c "import sys; sys.path.insert(0, '/opt/sharpa-wave-sdk/python'); import
 
 ### 4. Smoke tests (no hardware)
 
-From the **repository root** (`sharpa_teleop/`):
+From the **repository root**:
 
 ```bash
 conda activate ditto_sharpa
 
 # Retargeting core (imports + one IK step)
 python -c "
-import sys; sys.path[:0] = ['retargeting_teleop', '.']
+import sys; sys.path[:0] = ['sharpa_teleop', '.']
 import numpy as np
 from retargeting import DittoToSharpaRetargeter
 r = DittoToSharpaRetargeter()
 print('retarget ok', r.retarget(np.zeros(7), np.zeros(22)).index_residual)
 "
 
-# Joint teleop config loads
+# Teleop config loads (retarget + joint)
 python -c "
-import sys; sys.path.insert(0, '.')
+import sys; sys.path.insert(0, 'sharpa_teleop')
 from hydra import compose, initialize_config_dir
-from joint_teleop._paths import CONF_DIR, DITTO_CONF_DIR
+from _paths import CONF_DIR, DITTO_CONF_DIR
 with initialize_config_dir(version_base=None, config_dir=str(CONF_DIR)):
-    cfg = compose(config_name='config', overrides=[f'hydra.searchpath=[file://{DITTO_CONF_DIR}]'])
-print('joint teleop config ok', cfg.hand_config.leader.mode)
+    cfg = compose(config_name='config', overrides=[
+        f'hydra.searchpath=[file://{DITTO_CONF_DIR}]',
+        'hand_config=joint/sharpa_3dof_index',
+    ])
+print('teleop config ok', cfg.hand_config.control.fingers.index)
 "
 ```
 
 ## ▶️ Usage
 
-### 🎯 Retargeting
+### 🎯 Teleop
 
 > **Note:** before any run that talks to the Ditto U2D2, set the USB latency timer
 > (requires `sudo` when prompted): `dynamixel-port --latency-timer 1`
@@ -91,52 +93,67 @@ print('joint teleop config ok', cfg.hand_config.leader.mode)
 **URDF viewer only** (sliders + live retargeting, no hardware):
 
 ```bash
-python retargeting_teleop/viz/view_assets.py
+python sharpa_teleop/viz/view_assets.py
 ```
 
 **Physical Ditto leader + Sharpa follower + viewer** (hardware is opt-in):
 
 ```bash
-python retargeting_teleop/viz/view_teleop.py                   # viewer only
-python retargeting_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
-python retargeting_teleop/viz/view_teleop.py --ditto --sharpa --3f
-python retargeting_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
+python sharpa_teleop/viz/view_teleop.py                   # viewer only
+python sharpa_teleop/viz/view_teleop.py --ditto --sharpa  # both hardware
+python sharpa_teleop/viz/view_teleop.py --ditto --sharpa --3f
+python sharpa_teleop/viz/view_teleop.py --ditto u2d2.fake_u2d2=true
 ```
 
-**Force rendering** (`run_force_render.py`) always connects Ditto + Sharpa. Mode comes from the top-level `hand_config`:
+**Main force feedback teleop script** (`run_teleop.py`) always connects Ditto + Sharpa. Mode comes
+from the top-level `hand_config` (retarget, joint map, or blend):
+
+2-finger / 3-finger — retarget IK + tactile force:
 
 ```bash
-# 2f / 3f — retarget IK + tactile force
-python retargeting_teleop/run_force_render.py hand_config=ditto_2f_tactile
-python retargeting_teleop/run_force_render.py hand_config=ditto_3f_tactile
-
-# 2f / 3f — blended sources (index/middle: joint + tactile/measured; thumb: IK + tactile/estimate)
-python retargeting_teleop/run_force_render.py hand_config=ditto_2f_blend
-python retargeting_teleop/run_force_render.py hand_config=ditto_3f_blend
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile
 ```
 
-See **[retargeting_teleop/RETARGETING_TELEOP.md](retargeting_teleop/RETARGETING_TELEOP.md)** and **[docs/COMMANDS.md](retargeting_teleop/docs/COMMANDS.md)** for more.
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile
+```
 
-### 🖐️ Joint teleop
-
-> **Note:** before any run that talks to the Ditto U2D2, set the USB latency timer
-> (requires `sudo` when prompted): `dynamixel-port --latency-timer 1`
-
-Index MCP AA (motor 21) + MCP flex (22) + PIP (23):
+2-finger / 3-finger — blended sources (index/middle: 1:1 joint + tactile/measured; thumb: IK + tactile/estimate):
 
 ```bash
-python joint_teleop/sharpa_teleop_controller.py hand_config=sharpa_3dof_index
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_blend
+```
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_3f_blend
+```
+
+Direct joint map + measured force:
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_index
+```
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_middle
 ```
 
 **Live diagnostics**:
 
 ```bash
-python joint_teleop/live_plot.py hand_config=sharpa_3dof_index --current --position --torque
+python sharpa_teleop/viz/force_plot.py hand_config=ditto_2f_tactile
+```
+
+```bash
+python sharpa_teleop/viz/force_plot.py hand_config=joint/sharpa_3dof_index
 ```
 
 Fake Dynamixel (no USB): append `u2d2.fake_u2d2=true`
 
 Override the U2D2 port: `u2d2.usb_port=/dev/ttyUSB0`
+
+See **[sharpa_teleop/TELEOP.md](sharpa_teleop/TELEOP.md)** and
+**[docs/COMMANDS.md](sharpa_teleop/docs/COMMANDS.md)** for more.
 
 ### 📳 Haptics
 
@@ -150,32 +167,26 @@ See **[ditto_haptics/HAPTICS.md](ditto_haptics/HAPTICS.md)** for setup, motor co
 
 ## 📚 Documentation
 
-- **[Retargeting teleop](retargeting_teleop/RETARGETING_TELEOP.md)** — viewer, force-rendering modes/configs, IK API
-- **[Joint teleop](joint_teleop/JOINT_TELEOP.md)** — run commands, configs, force-feedback tuning
+- **[Ditto–Sharpa teleop](sharpa_teleop/TELEOP.md)** — viewer, retarget/joint modes, force rendering, IK API
 - **[Haptics](ditto_haptics/HAPTICS.md)** — vibration motors from tactile Fz
-- **`retargeting_teleop/conf/hand_config/`** — top-level Hydra configs (`ditto_2f_*`, `ditto_3f_*`)
+- **`sharpa_teleop/conf/hand_config/`** — top-level Hydra configs (`ditto_2f_*`, `ditto_3f_*`, `joint/*`)
 - **`sharpa_controller/tools/`** — read Sharpa joints, torques, tactile
 
 ## 🏗️ Layout
 
 ```
-sharpa_teleop/                      # this repo
+ditto_sharpa/                       # this repo
 ├── ditto/                          # submodule (Dynamixel leader)
 ├── sharpa_controller/              # submodule (Sharpa Wave)
-├── retargeting_teleop/             # pad retargeting + force rendering + viewer
-│   ├── conf/hand_config/           # ditto_2f_* / ditto_3f_* (tactile, blend, leader_only)
+├── sharpa_teleop/                  # Ditto → Sharpa teleop (retarget + joint + force)
+│   ├── conf/hand_config/           # ditto_2f_* / ditto_3f_* / joint/*
 │   ├── docs/                       # COMMANDS, FORCE_RENDERING, TELEOP_EQS
 │   ├── hardware_interfaces/
-│   ├── retargeting/
-│   ├── teleop/                     # engine + force render + force sources
+│   ├── retargeting/                # IK / pad retargeting
+│   ├── teleop/                     # DittoSharpaEngine + DittoSharpaTeleop
 │   ├── viz/
-│   ├── run_force_render.py
-│   └── RETARGETING_TELEOP.md
-├── joint_teleop/                   # direct joint teleop
-│   ├── conf/
-│   ├── sharpa_teleop_controller.py
-│   ├── live_plot.py
-│   └── JOINT_TELEOP.md
+│   ├── run_teleop.py
+│   └── TELEOP.md
 ├── ditto_haptics/                  # tactile Fz → vibration motors
 │   ├── ditto_haptics.py
 │   ├── run_ditto_haptics.py
