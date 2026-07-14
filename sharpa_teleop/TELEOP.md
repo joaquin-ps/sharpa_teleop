@@ -61,6 +61,10 @@ Always connects Ditto + Sharpa. Mode comes entirely from `hand_config`
 python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile
 python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile
 
+# Retarget + tactile force + vibration motors (ditto_haptics thumb_index)
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics
+python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile_haptics
+
 # Blend (index/middle joint+blend, thumb retarget+blend)
 python sharpa_teleop/run_teleop.py hand_config=ditto_2f_blend
 python sharpa_teleop/run_teleop.py hand_config=ditto_3f_blend
@@ -77,6 +81,24 @@ python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile \
 Fake Dynamixel (no USB): append `u2d2.fake_u2d2=true`. Override the U2D2 port:
 `u2d2.usb_port=/dev/ttyUSB0`.
 
+### Vibration haptics (`hand_config.haptics`)
+
+When `haptics.enabled: true`, `DittoSharpaTeleop` opens a `VibMotor` serial port
+and drives `ditto_haptics` from the follower's SharpaHand tactile Fz (same
+worker cycle as force rendering). Motor mapping comes from a YAML under
+`ditto_haptics/config/` (default stem `thumb_index`).
+
+```yaml
+haptics:
+  enabled: true
+  config: thumb_index      # → ditto_haptics/config/thumb_index.yaml
+  vib_port: /dev/ttyACM0
+  vib_baud: 115200
+  identify: true           # short buzz per motor at connect
+```
+
+Override at runtime: `hand_config.haptics.vib_port=/dev/ttyACM1`.
+
 ### Configs (`conf/hand_config/`)
 
 Top-level configs (preferred). Joint-only bring-up configs live under `joint/`.
@@ -88,6 +110,8 @@ Per-finger / legacy YAMLs live under `fingers/` and `old/`.
 | `ditto_3f_leader_only` | index+middle+thumb | — | none (3f viewer/teleop default) |
 | `ditto_2f_tactile` | index+thumb | retarget | tactile |
 | `ditto_3f_tactile` | index+middle+thumb | retarget | tactile |
+| `ditto_2f_tactile_haptics` | index+thumb | retarget | tactile + vib (`thumb_index`) |
+| `ditto_3f_tactile_haptics` | index+middle+thumb | retarget | tactile + vib (`thumb_index` on index/thumb) |
 | `ditto_2f_blend` | index+thumb | index=joint, thumb=retarget | index=50/50 tactile+measured, thumb=65/35 tactile+estimate |
 | `ditto_3f_blend` | index+middle+thumb | index/middle=joint, thumb=retarget | index/middle=50/50 tactile+measured, thumb=65/35 tactile+estimate |
 | `joint/sharpa_1dof_index_pip` | index PIP | joint | measured |

@@ -29,7 +29,24 @@ python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile
 python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile
 ```
 
-## 3. 2f / 3f blended force sources (headless)
+## 3. 2f / 3f tactile + vibration haptics (headless)
+
+Uses `ditto_haptics/config/thumb_index.yaml` (vib motors on index + thumb).
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics
+```
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile_haptics
+```
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics \
+  hand_config.haptics.vib_port=/dev/ttyACM1
+```
+
+## 4. 2f / 3f blended force sources (headless)
 
 ```bash
 python sharpa_teleop/run_teleop.py hand_config=ditto_2f_blend
@@ -37,9 +54,9 @@ python sharpa_teleop/run_teleop.py hand_config=ditto_2f_blend
 
 ```bash
 python sharpa_teleop/run_teleop.py hand_config=ditto_3f_blend
-```
+```      
 
-## 4. Direct joint map (headless)
+## 5. Direct joint map (headless)
 
 ```bash
 python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_index
@@ -49,7 +66,7 @@ python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_index
 python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_middle
 ```
 
-## 5. Visualizer with force-render config
+## 6. Visualizer with force-render config
 
 ```bash
 python sharpa_teleop/viz/view_teleop.py --ditto --sharpa hand_config=ditto_2f_tactile

@@ -6,26 +6,31 @@ force synthesized from Sharpa contact (tactile / estimate / measured / blend).
 The Sharpa follower is always connected. Which finger(s) are driven/rendered is
 inferred from the leader motors in the selected ``hand_config``.
 
+Optional vibration haptics (``ditto_haptics``) are enabled from
+``hand_config.haptics`` (see ``ditto_*_tactile_haptics`` configs).
+
 The control mode is fully defined by the chosen ``hand_config``: each finger's
 position and force source are declared together under ``control.fingers``
 (position = retarget | joint; force = measured | estimate | tactile | weight dict).
 A per-finger summary is printed at startup. Top-level configs (``conf/hand_config/``):
-    ditto_2f_tactile          index+thumb: retarget + tactile
-    ditto_3f_tactile          index+middle+thumb: retarget + tactile
-    ditto_2f_blend            index joint+blend, thumb retarget+blend
-    ditto_3f_blend            index/middle joint+blend, thumb retarget+blend
-    joint/sharpa_3dof_index   index: joint map + measured force
-    joint/sharpa_3dof_middle  middle: joint map + measured force
+    ditto_2f_tactile           index+thumb: retarget + tactile
+    ditto_3f_tactile           index+middle+thumb: retarget + tactile
+    ditto_2f_tactile_haptics   same as 2f tactile + vib motors (thumb_index)
+    ditto_3f_tactile_haptics   same as 3f tactile + vib motors (thumb_index)
+    ditto_2f_blend             index joint+blend, thumb retarget+blend
+    ditto_3f_blend             index/middle joint+blend, thumb retarget+blend
+    joint/sharpa_3dof_index    index: joint map + measured force
+    joint/sharpa_3dof_middle   middle: joint map + measured force
 
 Set ``force_render.calibrate: true`` / ``force_render.debug: true`` in the config
 to calibrate tactile on startup / print raw F6 vs base force.
 
 Examples:
     python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile
-    python sharpa_teleop/run_teleop.py hand_config=ditto_3f_blend
+    python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics
+    python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile_haptics \
+        hand_config.haptics.vib_port=/dev/ttyACM1
     python sharpa_teleop/run_teleop.py hand_config=joint/sharpa_3dof_index
-    python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile \
-        hand_config.leader.joint_settings.1.current_control.force_rendering_gain=0.05
 
 Use ``u2d2.fake_u2d2=true`` to exercise the leader path without USB hardware.
 Run ``viz/force_plot.py`` in a second terminal for the live diagnostic plot.

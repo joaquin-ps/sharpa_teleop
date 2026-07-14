@@ -118,6 +118,16 @@ python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile
 python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile
 ```
 
+2-finger / 3-finger — tactile force + vibration motors (`thumb_index`):
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics
+```
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_3f_tactile_haptics
+```
+
 2-finger / 3-finger — blended sources (index/middle: 1:1 joint + tactile/measured; thumb: IK + tactile/estimate):
 
 ```bash
@@ -157,10 +167,21 @@ See **[sharpa_teleop/TELEOP.md](sharpa_teleop/TELEOP.md)** and
 
 ### 📳 Haptics
 
-`ditto_haptics/` maps Sharpa fingertip tactile **Fz** to serial vibration motors. Standalone library (host owns the Sharpa hand); run alone or embed in a teleop loop.
+`ditto_haptics/` maps Sharpa fingertip tactile **Fz** to serial vibration motors.
+Run standalone, or enable inside teleop via `hand_config.haptics` (see
+`ditto_*_tactile_haptics` configs above, which use `ditto_haptics/config/thumb_index.yaml`).
+
+Standalone:
 
 ```bash
 python ditto_haptics/run_ditto_haptics.py
+```
+
+Override the vib serial port on a teleop config:
+
+```bash
+python sharpa_teleop/run_teleop.py hand_config=ditto_2f_tactile_haptics \
+  hand_config.haptics.vib_port=/dev/ttyACM1
 ```
 
 See **[ditto_haptics/HAPTICS.md](ditto_haptics/HAPTICS.md)** for setup, motor configs, and embedding.

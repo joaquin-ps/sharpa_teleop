@@ -19,6 +19,7 @@ import queue
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -65,6 +66,7 @@ from teleop.force_sources import (  # noqa: E402
 )
 
 if TYPE_CHECKING:
+    from ditto_haptics import DittoHaptics
     from hardware_interfaces.sharpa_follower.session import SharpaFollowerSession
 
 _MOTOR_TO_JOINT = dict(zip(DITTO_3F_LEADER_MOTOR_IDS, DITTO_3F_LEADER_JOINT_NAMES))
@@ -385,8 +387,84 @@ class DittoSharpaTeleop:
         self._retarget_thread: threading.Thread | None = None
         self._prev_switch_interval = sys.getswitchinterval()
         self._worker_perf_line: str | None = None
+        self._haptics: DittoHaptics | None = None
+        self._vib = None  # VibMotor; closed on disconnect when we opened it
 
     # ----- setup -------------------------------------------------------------
+
+    def attach_haptics(self, haptics: "DittoHaptics") -> None:
+        """Wire tactile vibration haptics (uses the follower's SharpaHand)."""
+        self._haptics = haptics
+
+    def _haptics_cfg(self):
+        return self.config.hand_config.get("haptics") or {}
+
+    def _haptics_enabled(self) -> bool:
+        return bool(self._haptics_cfg().get("enabled", False))
+
+    def _resolve_haptics_config_path(self, name_or_path: str | Path) -> Path:
+        """Resolve a haptics motor YAML under ditto_haptics/config/ (or absolute)."""
+        from _paths import HAPTICS_DIR, PACKAGE_ROOT, REPO_ROOT
+
+        path = Path(name_or_path)
+        if path.is_absolute():
+            resolved = path
+        else:
+            candidates: list[Path] = [
+                path,
+                PACKAGE_ROOT / path,
+                REPO_ROOT / path,
+                HAPTICS_DIR / path,
+                HAPTICS_DIR / "config" / path,
+            ]
+            # Bare stem like "thumb_index" → ditto_haptics/config/thumb_index.yaml
+            if path.suffix == "":
+                candidates.insert(0, HAPTICS_DIR / "config" / f"{path.name}.yaml")
+            else:
+                candidates.append(HAPTICS_DIR / "config" / path.name)
+            resolved = next((p for p in candidates if p.exists()), path)
+        if not resolved.exists():
+            raise FileNotFoundError(f"haptics config not found: {name_or_path}")
+        return resolved
+
+    def _setup_haptics_from_config(self) -> None:
+        """Open VibMotor + DittoHaptics when hand_config.haptics.enabled is set."""
+        hcfg = self._haptics_cfg()
+        if not bool(hcfg.get("enabled", False)):
+            return
+
+        from ditto_haptics import DittoHaptics, HapticsConfig
+        from vibration_motors.vib_serial import VibMotor
+
+        follower = self.sharpa_follower
+        if follower is None or follower.sharpa_hand is None:
+            raise RuntimeError(
+                "hand_config.haptics.enabled needs the Sharpa follower "
+                "(tactile configs always connect it)."
+            )
+
+        config_name = hcfg.get("config", "thumb_index")
+        config_path = self._resolve_haptics_config_path(str(config_name))
+        haptics_cfg = HapticsConfig.load(config_path)
+        vib_port = str(hcfg.get("vib_port", "/dev/ttyACM0"))
+        vib_baud = int(hcfg.get("vib_baud", 115200))
+        identify = bool(hcfg.get("identify", True))
+
+        vib = VibMotor(vib_port, baud=vib_baud)
+        self._vib = vib
+        if identify:
+            print("Identifying vibration motors...")
+            for motor_id in haptics_cfg.motor_ids():
+                print(f"  vibration motor {motor_id}")
+                vib.set_motor_level(motor_id, 7)
+                time.sleep(0.1)
+                vib.set_motor_level(motor_id, None)
+                time.sleep(0.2)
+
+        haptics = DittoHaptics.from_sharpa_hand(haptics_cfg, vib, follower.sharpa_hand)
+        self.attach_haptics(haptics)
+        if self.verbose:
+            print(f"Vibration haptics loaded from {config_path} (port {vib_port})")
 
     def _validate_leader_motors(self) -> None:
         for motor in self.leader_chain:
@@ -524,7 +602,8 @@ class DittoSharpaTeleop:
         if self.sharpa_follower is not None:
             print("Connecting Sharpa follower hardware...")
             self.sharpa_follower.start(self.engine.sharpa_ik.joint_q_index)
-            if self._needs_tactile:
+            need_tactile = self._needs_tactile or self._haptics_enabled()
+            if need_tactile:
                 ok = self.sharpa_follower.enable_tactile(
                     calibrate=self.tactile_calibrate
                 )
@@ -538,8 +617,13 @@ class DittoSharpaTeleop:
                         f"tactile force source on {tactile_fingers} needs tactile "
                         "sensors, but the Sharpa device did not enable them."
                     )
+            self._setup_haptics_from_config()
         else:
             print("No Sharpa follower: leader current loop only (no force rendered).")
+            if self._haptics_enabled():
+                raise RuntimeError(
+                    "hand_config.haptics.enabled requires a Sharpa follower session."
+                )
 
     def setup_motors(self) -> None:
         if self.leader_hand is None:
@@ -547,6 +631,12 @@ class DittoSharpaTeleop:
         self.leader_hand.setup_motors()
 
     def disconnect(self) -> None:
+        if self._haptics is not None:
+            self._haptics.stop()
+            self._haptics = None
+        if self._vib is not None:
+            self._vib.close()
+            self._vib = None
         if self.leader_hand is not None:
             self.leader_hand.disconnect()
             self.leader_hand = None
@@ -861,6 +951,8 @@ class DittoSharpaTeleop:
                     t_est = time.perf_counter()
                     self._cached_torques = self._compute_cached_torques(ditto_q)
                     w_est += time.perf_counter() - t_est
+                    if self._haptics is not None:
+                        self._haptics.update()
 
             w_n += 1
             if w_n >= report_every:
@@ -921,6 +1013,12 @@ class DittoSharpaTeleop:
         print("  Per-finger control mode (hand_config.control.fingers):")
         for finger in self._finger_modes:
             print(f"    {finger:<6s} {self._describe_finger(finger)}")
+        if self._haptics is not None:
+            motors = ", ".join(
+                f"m{m} ({c.finger})"
+                for m, c in sorted(self._haptics.config.motors.items())
+            )
+            print(f"  Vibration haptics: ON ({motors})")
         print(f"{bar}\n")
 
     def start_control_loop(self) -> None:

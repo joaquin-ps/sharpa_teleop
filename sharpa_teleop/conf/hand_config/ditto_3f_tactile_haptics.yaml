@@ -1,0 +1,243 @@
+# @package hand_config
+#
+# 3-finger Ditto (index + middle + thumb): retarget IK + tactile force on all
+# fingers, plus vibration haptics on index/thumb via thumb_index.yaml (middle
+# has force render only — no vib motor in that mapping).
+# Motors: index 121–123 | middle 131–133 | thumb 111–114.
+
+control_frequency: 250
+verbose: false
+show_current_breakdown: false
+show_perf: false  # to show loop frequency performance
+
+leader:
+  mode: current
+  motor_ids: [121, 122, 123, 131, 132, 133, 111, 112, 113, 114]
+  general_settings:
+    current_limit: 1400
+    current_command: 0
+  joint_settings:
+
+  # < ----- INDEX ----- >
+  - motor_id: 121            # index_joint_0 -> Index MCP AA
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 70.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive: 350
+      force_rendering_threshold_negative: 350
+      force_rendering_max_current: 50
+  - motor_id: 122            # index_joint_1 -> Index MCP FE
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 30.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.40 # 0.12
+      enable_force_rendering_adaptive_gain: true
+      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive:  0 # 135
+      force_rendering_threshold_negative:  0 # 185
+      force_rendering_max_current: 140 # 110
+  - motor_id: 123            # index_joint_2 -> Index PIP
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 8.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 45
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.40 # 0.18
+      enable_force_rendering_adaptive_gain: true
+      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive:  0 # 125
+      force_rendering_threshold_negative:  0 # 185
+      force_rendering_max_current: 120 # 90
+
+  # < ----- MIDDLE (same gains as index) ----- >
+  - motor_id: 131            # middle_joint_0 -> Middle MCP AA
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 70.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.1
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive: 350
+      force_rendering_threshold_negative: 350
+      force_rendering_max_current: 50
+  - motor_id: 132            # middle_joint_1 -> Middle MCP FE
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 40.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.40 # 0.12
+      enable_force_rendering_adaptive_gain: true
+      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive:  0 # 135
+      force_rendering_threshold_negative:  0 # 185
+      force_rendering_max_current: 140 # 110
+  - motor_id: 133            # middle_joint_2 -> Middle PIP
+    plot_joint: true
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 8.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 45
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.40 # 0.18
+      enable_force_rendering_adaptive_gain: true
+      force_rendering_adaptive_velocity_coeff: 1.5
+      force_rendering_alpha: 0.05
+      force_rendering_threshold_positive:  0 # 125
+      force_rendering_threshold_negative:  0 # 185
+      force_rendering_max_current: 120 # 90
+
+  # < ----- THUMB ----- >
+  - motor_id: 111            # thumb_joint_0 (proximal)
+    plot_joint: false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 20.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.2
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 100
+  - motor_id: 112            # thumb_joint_1
+    plot_joint: false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 25.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+  - motor_id: 113            # thumb_joint_2
+    plot_joint: false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 25.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 35
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 110
+  - motor_id: 114            # thumb_joint_3 (distal)
+    plot_joint: false
+    joint_settings:
+      motor_model: XC330
+    current_control:
+      enable_force_rendering_damping: true
+      force_rendering_damping_gain: 20.0
+      force_rendering_damping_velocity_threshold: 0.0
+      force_rendering_damping_max_current: 30
+      enable_force_rendering: true
+      gradual_rendering: true
+      force_rendering_gain: 0.15
+      force_rendering_alpha: 0.1
+      force_rendering_threshold_positive: 0
+      force_rendering_threshold_negative: 0
+      force_rendering_max_current: 70
+
+follower:
+  mode: none
+
+control:
+  fingers:
+    index:  {position: retarget, force: tactile}
+    middle: {position: retarget, force: tactile}
+    thumb:  {position: retarget, force: tactile}
+
+force_render:
+  joints:
+  - motor_id: 121
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 122
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 123
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 131
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 132
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 133
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 111
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 112
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 113
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+  - motor_id: 114
+    torque_to_mA: 1000.0
+    torque_filter_alpha: 0.2
+
+# Vibration motors (ditto_haptics). Index + thumb only (see thumb_index.yaml).
+haptics:
+  enabled: true
+  config: thumb_index
+  vib_port: /dev/ttyACM0
+  vib_baud: 115200
+  identify: true
